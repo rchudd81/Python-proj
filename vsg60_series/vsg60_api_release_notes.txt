@@ -1,0 +1,42 @@
+Release Version Notes for the VSG60 Programming Interface
+
+Support contact: support@signalhound.com
+
+- Version 1.2.0 (TBD)
+* Official support for the VSG200.
+
+- Version 1.1.1 (10/9/2025)
+* Added vsgSetImbalanceCorrectionMode function. 
+  This function controls the I/Q imbalance correction algorithm.
+  Can choose a new algorithm which trades worse imbalance for lower CPU usage.
+
+- Version 1.1.0 (10/3/2025)
+* Internal build, support for additional VCO adjustments.
+
+- Version 1.0.8
+* Internal build.
+* Real-time phase noise impairment support.
+
+- Version 1.0.7 
+* Internal build.
+
+- Version 1.0.6 (7/15/2021)
+* API will now handle frequency hopping applications better when very small dwell times are used
+  at each frequency. API will now limit the number of outstanding frequency changes that can be 
+  queued and will block when this number has been reached. 
+
+- Version 1.0.5 (7/29/2020)
+* Removed debugging print messages to stdout.
+
+- Version 1.0.4 (4/21/2020)
+* Bug fix: Updating the sample rate in certain configurations would cause a residual frequency error. This has been resolved.
+
+- Version 1.0.3 (1/6/2020)
+* Support for Ubuntu 18.04 (x64)
+
+- Version 1.0.2 (9/16/2019)
+* Added power saving CPU mode.
+
+- Version 1.0.1 (8/27/2019)
+* Official release.
+

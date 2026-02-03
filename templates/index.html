@@ -1,0 +1,411 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>VSG Control</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 24px; }
+      label { display:block; margin-top:8px }
+      input[type="number"], select { width:200px }
+      button { margin-top:12px }
+    </style>
+    </style>
+    <script src="https://cdn.plot.ly/plotly-2.24.0.min.js"></script>
+  </head>
+  <body>
+    <h2>VSG Test Tone</h2>
+    <form id="params">
+      <label>Mode
+        <select id="mode">
+          <option value="cw">CW (carrier)</option>
+          <option value="iq">IQ Loop (baseband tone)</option>
+          <option value="sweep">Sweep (swept carrier)</option>
+        </select>
+      </label>
+      <label>Frequency (Hz)
+        <input id="frequency" type="number" value="1000000000" step="1" />
+      </label>
+      <label>Level (dBm)
+        <input id="level" type="number" value="-10" step="0.1" />
+      </label>
+      <div id="iqParams" style="display:none">
+        <label>Sample rate (Hz)
+          <input id="sample_rate" type="number" value="1000000" />
+        </label>
+        <label>Tone freq (Hz)
+          <input id="tone_freq" type="number" value="100000" />
+        </label>
+        <label>IQ length (samples)
+          <input id="iq_length" type="number" value="16384" />
+        </label>
+        <div id="sweepParams" style="display:none; margin-top:8px">
+          <label>Sweep bandwidth (Hz)
+            <input id="bandwidth" type="number" value="1000000" />
+          </label>
+          <label>Sweep speed (Hz/s)
+            <input id="sweep_speed" type="number" value="1000000" />
+          </label>
+        </div>
+      </div>
+      <button id="preview" type="button">Preview Spectrum</button>
+      <button id="start">Enable / Start</button>
+      <button id="stop" type="button">Disable / Stop</button>
+    </form>
+
+    <pre id="status"></pre>
+
+    <h3>Spectrum Preview</h3>
+    <div id="spectrum" style="width:800px;height:360px;border:1px solid #ccc"></div>
+    <div style="margin-top:6px">
+      <button id="findPeak" type="button">Find Peak</button>
+      <span id="spectrumInfo"></span>
+      <span id="peakInfo" style="margin-left:12px;font-weight:bold"></span>
+      <button id="startIQStream" type="button" style="margin-left:12px">Start IQ Stream</button>
+      <button id="stopIQStream" type="button">Stop IQ Stream</button>
+    </div>
+
+    <h3>IQ Live View</h3>
+    <div id="iqSpectrum" style="width:800px;height:360px;border:1px solid #ccc"></div>
+    <div id="iqTime" style="width:800px;height:240px;border:1px solid #ccc;margin-top:8px"></div>
+    <div id="iqConst" style="width:400px;height:400px;border:1px solid #ccc;margin-top:8px"></div>
+
+    <script>
+      const modeEl = document.getElementById('mode');
+      const iqParams = document.getElementById('iqParams');
+      const status = document.getElementById('status');
+      // FFT worker for previews
+      let fftWorker = null;
+      let lastMag = null;
+      let lastFreqs = null;
+      try{
+        fftWorker = new Worker('/static/fft_worker.js');
+        fftWorker.onmessage = function(ev){
+          if(ev.data && ev.data.error){ status.textContent = 'Worker error: '+ev.data.error; return; }
+          // receive transferable buffers
+          try{
+            const mag = new Float64Array(ev.data.mag);
+            const freqs = new Float64Array(ev.data.freqs);
+            lastMag = mag; lastFreqs = freqs;
+            drawPlotly(mag, freqs);
+            status.textContent = 'Preview ready';
+          }catch(err){ status.textContent = 'Worker data error: '+err; }
+        };
+      }catch(err){ console.warn('Could not create FFT worker', err); }
+
+      modeEl.addEventListener('change', ()=>{
+        iqParams.style.display = (modeEl.value === 'iq' || modeEl.value === 'sweep') ? 'block' : 'none';
+        document.getElementById('sweepParams').style.display = modeEl.value === 'sweep' ? 'block' : 'none';
+      })
+
+      document.getElementById('preview').addEventListener('click', async (e)=>{
+        e.preventDefault();
+        status.textContent = 'Generating preview...';
+        const sample_rate = Number(document.getElementById('sample_rate').value)||1e6;
+        const tone_freq = Number(document.getElementById('tone_freq').value)||1e5;
+        let iq_length = Number(document.getElementById('iq_length').value)||16384;
+        const MAX_PREVIEW = 8192;
+        if (iq_length > MAX_PREVIEW) iq_length = MAX_PREVIEW;
+        function nextPow2(v){return 1<<Math.ceil(Math.log2(v));}
+        const N = nextPow2(iq_length);
+        if(fftWorker){
+          fftWorker.postMessage({cmd:'preview', sample_rate: sample_rate, tone_freq: tone_freq, N: N});
+        }else{
+          status.textContent = 'No FFT worker available';
+        }
+      });
+
+      // FFT and plotting helpers
+      function nextPow2(v){ return 1<<Math.ceil(Math.log2(v)); }
+
+      function computeSpectrum(iArr,qArr, fs){
+        let N = iArr.length;
+        // pad/truncate to power-of-two
+        const target = (Math.log2(N)%1===0) ? N : nextPow2(N);
+        const re = new Float64Array(target);
+        const im = new Float64Array(target);
+        for(let k=0;k<target;k++){
+          re[k] = (k < N) ? iArr[k] : 0.0;
+          im[k] = (k < N) ? qArr[k] : 0.0;
+        }
+        fft(re,im);
+        const mag = new Float64Array(target);
+        for(let k=0;k<target;k++) mag[k]=Math.sqrt(re[k]*re[k]+im[k]*im[k]);
+        // fftshift and build frequency axis from -fs/2..fs/2
+        const half = target/2;
+        const out = new Float64Array(target);
+        const freqs = new Float64Array(target);
+        for(let k=0;k<half;k++){
+          out[k]=mag[k+half];
+          out[k+half]=mag[k];
+        }
+        for(let k=0;k<target;k++) freqs[k] = (k - half) * (fs / target);
+        return {mag: out, freqs: freqs};
+      }
+
+      function drawPlotly(mag, freqs, peakFreq=null, peakMag=null){
+        const N = mag.length;
+        let maxv = 1e-12;
+        for(let k=0;k<N;k++) if(mag[k]>maxv) maxv=mag[k];
+        const db = new Float64Array(N);
+        for(let k=0;k<N;k++) db[k]=20*Math.log10(mag[k]/maxv + 1e-12);
+        const trace = {
+          x: Array.from(freqs),
+          y: Array.from(db),
+          mode: 'lines',
+          name: 'Spectrum',
+          line: {color: '#0077cc'}
+        };
+        const traces = [trace];
+        let layout = {
+          margin: {l:60, r:10, t:20, b:60},
+          xaxis: {title: 'Frequency (Hz)', tickformat: ',.0f'},
+          yaxis: {title: 'Relative dB', autorange: true},
+        };
+        if(peakFreq !== null && peakMag !== null){
+          const peakDb = 20*Math.log10(peakMag / maxv + 1e-12);
+          traces.push({x:[peakFreq], y:[peakDb], mode:'markers', marker:{color:'red', size:8}, name:'Peak'});
+          layout.shapes = [{type: 'line', x0: peakFreq, x1: peakFreq, y0: -200, y1: 20, line:{color:'red', width:1, dash:'dash'}}];
+          document.getElementById('peakInfo').textContent = `Instant freq: ${formatHz(peakFreq)}, ${peakDb.toFixed(1)} dB`;
+        }else{
+          document.getElementById('peakInfo').textContent = '';
+        }
+        Plotly.react('spectrum', traces, layout, {displayModeBar: false});
+        document.getElementById('spectrumInfo').textContent = `Samples: ${N}, BW=${(freqs[N-1]-freqs[0]).toFixed(0)} Hz`;
+      }
+
+      function drawSpectrum(mag, freqs){
+        const canvas = document.getElementById('spectrum');
+        const ctx = canvas.getContext('2d');
+        const W = canvas.width, H = canvas.height;
+        ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H);
+        const N = mag.length;
+        // convert to dB full scale (relative)
+        let maxv = 1e-12;
+        for(let k=0;k<N;k++) if(mag[k]>maxv) maxv=mag[k];
+        const db = new Float64Array(N);
+        for(let k=0;k<N;k++) db[k]=20*Math.log10(mag[k]/maxv + 1e-12);
+        // autoscale: display from (max_dB-80) to max_dB
+        const maxdB = Math.max(...db);
+        const mindB = maxdB - 80;
+        // draw y-axis labels (dB)
+        ctx.fillStyle='#000'; ctx.strokeStyle='#ccc'; ctx.font='12px Arial';
+        const yTicks = 5;
+        for(let t=0;t<=yTicks;t++){
+          const val = maxdB + (mindB - maxdB) * (t / yTicks);
+          const y = (t / yTicks) * H;
+          ctx.fillStyle='#000'; ctx.fillText(val.toFixed(0)+' dB', 4, y+4);
+          ctx.beginPath(); ctx.moveTo(60, y); ctx.lineTo(W, y); ctx.strokeStyle='#eee'; ctx.stroke();
+        }
+        // draw x-axis frequency labels
+        const xOffset = 60; // leave space for y labels
+        const plotW = W - xOffset - 8;
+        ctx.beginPath(); ctx.strokeStyle='#000'; ctx.moveTo(xOffset,0); ctx.lineTo(xOffset,H); ctx.lineTo(W,H); ctx.stroke();
+        const xTicks = 8;
+        for(let t=0;t<=xTicks;t++){
+          const idx = Math.round((t/xTicks)*(N-1));
+          const x = xOffset + (t/xTicks)*plotW;
+          const f = freqs[idx];
+          ctx.fillStyle='#000'; ctx.fillText(formatHz(f), x-20, H-6);
+          ctx.beginPath(); ctx.moveTo(x, H-6); ctx.lineTo(x, H-2); ctx.strokeStyle='#000'; ctx.stroke();
+        }
+        // plot spectrum line
+        ctx.strokeStyle='#0077cc'; ctx.beginPath();
+        for(let k=0;k<N;k++){
+          const x = xOffset + (k/(N-1))*plotW;
+          const y = ((db[k]-maxdB)/(mindB-maxdB)) * H; // 0..H
+          const yPos = Math.min(Math.max(y,0),H);
+          if(k===0) ctx.moveTo(x,H - yPos); else ctx.lineTo(x,H - yPos);
+        }
+        ctx.stroke();
+        document.getElementById('spectrumInfo').textContent = `Samples: ${N}, BW=${(freqs[N-1]-freqs[0]).toFixed(0)} Hz`;
+
+        // clear previous peak info
+        document.getElementById('peakInfo').textContent = '';
+      }
+
+      function formatHz(f){
+        const absf = Math.abs(f);
+        if(absf >= 1e9) return (f/1e9).toFixed(3)+' GHz';
+        if(absf >= 1e6) return (f/1e6).toFixed(3)+' MHz';
+        if(absf >= 1e3) return (f/1e3).toFixed(3)+' kHz';
+        return f.toFixed(0)+' Hz';
+      }
+
+      document.getElementById('findPeak').addEventListener('click', ()=>{
+        if(!lastMag || !lastFreqs){ document.getElementById('peakInfo').textContent = 'No preview data'; return; }
+        const mag = lastMag;
+        const freqs = lastFreqs;
+        let maxIdx = 0, maxV = -1;
+        for(let k=0;k<mag.length;k++){ if(mag[k]>maxV){ maxV=mag[k]; maxIdx=k; } }
+        const peakFreq = freqs[maxIdx];
+        const peakDb = 20*Math.log10(maxV / (Math.max.apply(null, mag) || 1e-12));
+        document.getElementById('peakInfo').textContent = `Peak: ${formatHz(peakFreq)}, ${peakDb.toFixed(1)} dB`;
+        // draw vertical line and marker using Plotly
+        Plotly.relayout('spectrum', {'shapes': [{type:'line', x0:peakFreq, x1:peakFreq, y0:-200, y1:20, line:{color:'red', dash:'dash'}}]});
+        Plotly.addTraces('spectrum', {x:[peakFreq], y:[20*Math.log10(maxV/(Math.max.apply(null, mag)||1e-12)+1e-12)], mode:'markers', marker:{color:'red', size:8}}).catch(()=>{});
+      });
+
+      // IQ streaming handlers
+      let iqEventSource = null;
+      document.getElementById('startIQStream').addEventListener('click', async ()=>{
+        const payload = {
+          sample_rate: Number(document.getElementById('sample_rate').value)||1e6,
+          tone_freq: Number(document.getElementById('tone_freq').value)||1e5,
+          length: Math.min(Number(document.getElementById('iq_length').value)||1024, 4096),
+          interval: 0.2
+        };
+        await fetch('/start_iq_stream', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+        // remember sample rate for live spectrum calculations
+        window.iqSampleRate = payload.sample_rate;
+        if(iqEventSource) iqEventSource.close();
+        iqEventSource = new EventSource('/iq_stream');
+        iqEventSource.onmessage = function(e){
+          try{
+            const d = JSON.parse(e.data);
+            if(d.keep) return;
+            const i = d.i; const q = d.q;
+            updateIQPlots(i,q);
+          }catch(err){ console.warn('iq parse', err); }
+        };
+      });
+
+      document.getElementById('stopIQStream').addEventListener('click', async ()=>{
+        await fetch('/stop_iq_stream', {method:'POST'});
+        if(iqEventSource){ iqEventSource.close(); iqEventSource=null; }
+      });
+
+      function updateIQPlots(iArr, qArr){
+        // time domain
+        const ttrace = { x: Array.from(Array(iArr.length).keys()), y: iArr, name:'I', line:{color:'#1f77b4'} };
+        const qtrace = { x: Array.from(Array(qArr.length).keys()), y: qArr, name:'Q', line:{color:'#ff7f0e'} };
+        const tlayout = {margin:{l:40,r:10,t:10,b:40}, yaxis:{title:'Amplitude'}};
+        Plotly.react('iqTime', [ttrace,qtrace], tlayout, {displayModeBar:false});
+        // constellation
+        const ctrace = { x: iArr, y: qArr, mode:'markers', marker:{size:4} };
+        const clayout = {margin:{l:40,r:10,t:10,b:40}, xaxis:{title:'I'}, yaxis:{title:'Q'} };
+        Plotly.react('iqConst', [ctrace], clayout, {displayModeBar:false});
+
+        // compute live spectrum and update live spectrum plot
+        try{
+          const fs = window.iqSampleRate || (Number(document.getElementById('sample_rate').value)||1e6);
+          const res = computeSpectrum(iArr, qArr, fs);
+          // find peak
+          let maxIdx = 0, maxV = -1;
+          for(let k=0;k<res.mag.length;k++){ if(res.mag[k]>maxV){ maxV=res.mag[k]; maxIdx=k; } }
+          const peakFreq = res.freqs[maxIdx];
+          const peakMag = res.mag[maxIdx];
+          updateLiveSpectrum(res.mag, res.freqs, peakFreq, peakMag);
+        }catch(err){ console.warn('live spectrum error', err); }
+      }
+
+      function updateLiveSpectrum(mag, freqs, peakFreq, peakMag){
+        const N = mag.length;
+        let maxv = 1e-12;
+        for(let k=0;k<N;k++) if(mag[k]>maxv) maxv=mag[k];
+        const db = new Float64Array(N);
+        for(let k=0;k<N;k++) db[k]=20*Math.log10(mag[k]/maxv + 1e-12);
+        const trace = {
+          x: Array.from(freqs),
+          y: Array.from(db),
+          mode: 'lines',
+          name: 'Spectrum',
+          line: {color: '#0077cc'}
+        };
+        const traces = [trace];
+        const peakDb = 20*Math.log10(peakMag / maxv + 1e-12);
+        traces.push({x:[peakFreq], y:[peakDb], mode:'markers', marker:{color:'red', size:8}, name:'Peak', hoverinfo:'skip'});
+        const layout = {
+          margin: {l:60, r:10, t:20, b:60},
+          xaxis: {title: 'Frequency (Hz)', tickformat: ',.0f'},
+          yaxis: {title: 'Relative dB', autorange: true},
+          shapes: [{type: 'line', x0: peakFreq, x1: peakFreq, y0: -200, y1: 20, line:{color:'red', width:1, dash:'dash'}}],
+          showlegend: false
+        };
+        Plotly.react('iqSpectrum', traces, layout, {displayModeBar: false});
+      }
+
+      function fft(re,im){
+        const n = re.length;
+        const bits = Math.log2(n);
+        if(Math.floor(bits)!==bits) throw 'FFT size must be power of two';
+        for(let i=0;i<n;i++){
+          let j=0; for(let b=0;b<bits;b++) j=(j<<1)|((i>>b)&1);
+          if(j>i){ let tr=re[i], ti=im[i]; re[i]=re[j]; im[i]=im[j]; re[j]=tr; im[j]=ti; }
+        }
+        for(let len=2; len<=n; len<<=1){
+          const ang = -2*Math.PI/len;
+          const wlen_r = Math.cos(ang), wlen_i = Math.sin(ang);
+          for(let i=0;i<n;i+=len){
+            let wr=1, wi=0;
+            for(let j=0;j<len/2;j++){
+              const u_r = re[i+j], u_i = im[i+j];
+              const v_r = re[i+j+len/2]*wr - im[i+j+len/2]*wi;
+              const v_i = re[i+j+len/2]*wi + im[i+j+len/2]*wr;
+              re[i+j] = u_r + v_r; im[i+j] = u_i + v_i;
+              re[i+j+len/2] = u_r - v_r; im[i+j+len/2] = u_i - v_i;
+              const nxt_r = wr*wlen_r - wi*wlen_i;
+              const nxt_i = wr*wlen_i + wi*wlen_r;
+              wr = nxt_r; wi = nxt_i;
+            }
+          }
+        }
+      }
+
+      document.getElementById('start').addEventListener('click', async (e)=>{
+        e.preventDefault();
+        const payload = {
+          mode: document.getElementById('mode').value,
+          frequency: Number(document.getElementById('frequency').value),
+          level: Number(document.getElementById('level').value),
+          sample_rate: Number(document.getElementById('sample_rate').value),
+          tone_freq: Number(document.getElementById('tone_freq').value),
+          iq_length: Number(document.getElementById('iq_length').value),
+          bandwidth: Number(document.getElementById('bandwidth')?.value || 0),
+          sweep_speed: Number(document.getElementById('sweep_speed')?.value || 0)
+        };
+        status.textContent = 'Sending start...';
+        try {
+          const r = await fetch('/start', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+          const j = await r.json();
+          status.textContent = JSON.stringify(j, null, 2);
+          // if sweep started, begin polling sweep status to animate instantaneous freq
+          if(j && j.mode === 'sweep'){
+            startSweepPolling();
+          }
+        } catch (err) { status.textContent = err.toString(); }
+      });
+
+      document.getElementById('stop').addEventListener('click', async ()=>{
+        status.textContent = 'Stopping...';
+        try {
+          const r = await fetch('/stop', {method:'POST'});
+          const j = await r.json();
+          status.textContent = JSON.stringify(j, null, 2);
+          stopSweepPolling();
+        } catch (err) { status.textContent = err.toString(); }
+      });
+
+      // sweep polling
+      let sweepPollHandle = null;
+      function startSweepPolling(){
+        if(sweepPollHandle) return;
+        sweepPollHandle = setInterval(async ()=>{
+          try{
+            const r = await fetch('/sweep_status');
+            const j = await r.json();
+            if(j && j.frequency!=null){
+              // update instantaneous marker on plot
+              const f = j.frequency;
+              document.getElementById('peakInfo').textContent = `Instant freq: ${formatHz(f)}`;
+              Plotly.relayout('spectrum', {'shapes': [{type:'line', x0:f, x1:f, y0:-200, y1:20, line:{color:'red', dash:'dash'}}]});
+            }
+          }catch(e){ /* ignore */ }
+        }, 200);
+      }
+
+      function stopSweepPolling(){
+        if(sweepPollHandle){ clearInterval(sweepPollHandle); sweepPollHandle = null; }
+      }
+    </script>
+  </body>
+</html>
