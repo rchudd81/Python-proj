@@ -6,8 +6,16 @@ from flask import Flask, render_template, request, jsonify
 from flask import Response, stream_with_context
 import json
 import numpy as np
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
+
+# workspace root
+ROOT = os.path.dirname(__file__)
+
+# upload directory for IQ files via UI
+UPLOAD_DIR = os.path.join(ROOT, 'uploads')
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # Ensure the example vsg wrapper can be imported
 ROOT = os.path.dirname(__file__)
@@ -94,6 +102,23 @@ def generate_iq(tone_freq_hz, sample_rate_hz, num_samples):
     iq[0::2] = i
     iq[1::2] = q
     return iq
+
+
+def load_iq_file(path):
+    """Load raw interleaved float32 IQ file and return (arr, complex_samples).
+
+    `arr` is a 1-D float32 NumPy array containing interleaved I,Q samples.
+    """
+    if not os.path.exists(path):
+        raise FileNotFoundError(path)
+    with open(path, 'rb') as f:
+        data = f.read()
+    arr = np.frombuffer(data, dtype=np.float32)
+    # make even length
+    if arr.size % 2:
+        arr = arr[:-1]
+    complex_samples = arr.size // 2
+    return arr, complex_samples
 
 
 def iq_producer(sample_rate, tone_freq, length, interval=0.1):
@@ -245,6 +270,79 @@ def start():
         return jsonify({"status": "error", "message": str(exc)}), 500
 
 
+@app.route('/play_iq_file', methods=['POST'])
+def play_iq_file():
+    """Play an IQ file (raw interleaved float32) on the device in repeat mode.
+
+    JSON body: {"path": "relative/or/absolute/path/to/file.iq", "frequency": <Hz>, "level": <dBm>}
+    """
+    data = request.json or {}
+    path = data.get('path')
+    if not path:
+        return jsonify({"status": "error", "message": "path required"}), 400
+    freq = float(data.get('frequency', 1e9))
+    level = float(data.get('level', -10.0))
+    try:
+        dev = open_device()
+        # set level and enable RF
+        vsg.vsg_set_level(dev, level)
+        vsg.vsg_set_RF_output_state(dev, 1)
+        vsg.vsg_set_frequency(dev, freq)
+
+        arr, complex_samples = load_iq_file(path)
+        # vsg wrapper expects array and sample count (complex samples)
+        result = vsg.vsg_repeat_waveform(dev, arr, int(complex_samples))
+        # include API result for diagnosis
+        return jsonify({"status": "ok", "path": path, "samples": int(complex_samples), "vsg_result": result})
+    except Exception as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 500
+
+
+@app.route('/upload_iq', methods=['POST'])
+def upload_iq():
+    """Accept a multipart file upload (field 'file') and save to uploads/ directory.
+    Returns JSON: {"status":"ok","path":"<absolute path>"}
+    """
+    if 'file' not in request.files:
+        return jsonify({"status":"error","message":"No file field in request"}), 400
+    f = request.files['file']
+    if f.filename == '':
+        return jsonify({"status":"error","message":"Empty filename"}), 400
+    filename = secure_filename(f.filename)
+    dest = os.path.join(UPLOAD_DIR, filename)
+    f.save(dest)
+    return jsonify({"status":"ok", "path": dest})
+
+
+@app.route('/preview_iq', methods=['POST'])
+def preview_iq():
+    """Return a short preview (I and Q lists) for a given uploaded IQ file.
+
+    JSON body: {"path": "<path>", "length": <complex samples>}
+    """
+    data = request.json or {}
+    path = data.get('path')
+    length = int(data.get('length', 4096))
+    offset = int(data.get('offset', 0))
+    if not path:
+        return jsonify({"status":"error", "message":"path required"}), 400
+    try:
+        arr, complex_samples = load_iq_file(path)
+        n = min(complex_samples, length)
+        # compute start index (complex sample index) with wrap
+        start = offset % complex_samples
+        # create lists by wrapping around file if needed
+        i_list = []
+        q_list = []
+        for k in range(n):
+            idx = (start + k) % complex_samples
+            i_list.append(float(arr[2*idx]))
+            q_list.append(float(arr[2*idx+1]))
+        return jsonify({"status":"ok", "i": i_list, "q": q_list, "samples": n})
+    except Exception as exc:
+        return jsonify({"status":"error", "message": str(exc)}), 500
+
+
 @app.route("/stop", methods=["POST"])
 def stop():
     try:
@@ -266,6 +364,36 @@ def sweep_status():
     with sweep_lock:
         f = sweep_current_freq
     return jsonify({"sweep_active": sweep_thread is not None and sweep_thread.is_alive(), "frequency": f})
+
+
+@app.route('/device_status')
+def device_status():
+    """Return basic device status information to help debugging."""
+    if vsg is None:
+        return jsonify({"status": "no_vsg_wrapper"})
+    try:
+        dev = None
+        try:
+            dev = open_device()
+        except Exception:
+            dev = None
+        info = {}
+        if dev is not None:
+            try:
+                info['serial'] = vsg.vsg_get_serial_number(dev)
+            except Exception:
+                info['serial'] = None
+            try:
+                info['firmware'] = vsg.vsg_get_firmware_version(dev)
+            except Exception:
+                info['firmware'] = None
+            try:
+                info['usb'] = vsg.vsg_get_USB_status(dev)
+            except Exception:
+                info['usb'] = None
+        return jsonify({"status": "ok", "device": info})
+    except Exception as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 500
 
 
 if __name__ == "__main__":

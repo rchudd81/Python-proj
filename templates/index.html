@@ -10,7 +10,6 @@
       button { margin-top:12px }
     </style>
     </style>
-    <script src="https://cdn.plot.ly/plotly-2.24.0.min.js"></script>
   </head>
   <body>
     <h2>VSG Test Tone</h2>
@@ -50,24 +49,27 @@
       <button id="preview" type="button">Preview Spectrum</button>
       <button id="start">Enable / Start</button>
       <button id="stop" type="button">Disable / Stop</button>
+      <div style="margin-top:8px">
+        <label>Upload IQ file
+          <input id="iqFile" type="file" accept=".iq,.bin" />
+        </label>
+        <button id="uploadIq" type="button">Upload & Start Preview Loop</button>
+        <button id="playUploaded" type="button" disabled>Play Uploaded File</button>
+        <button id="stopPreviewBtn" type="button" style="display:none">Stop Preview Loop</button>
+        <span id="uploadedPath" style="margin-left:8px"></span>
+      </div>
     </form>
 
     <pre id="status"></pre>
 
     <h3>Spectrum Preview</h3>
-    <div id="spectrum" style="width:800px;height:360px;border:1px solid #ccc"></div>
+    <p style="color:#666;font-size:12px">Spectrum chart:</p>
+    <canvas id="spectrum" width="800" height="360" style="border:2px solid #000;background:#fff;display:block;margin:10px 0"></canvas>
     <div style="margin-top:6px">
       <button id="findPeak" type="button">Find Peak</button>
       <span id="spectrumInfo"></span>
       <span id="peakInfo" style="margin-left:12px;font-weight:bold"></span>
-      <button id="startIQStream" type="button" style="margin-left:12px">Start IQ Stream</button>
-      <button id="stopIQStream" type="button">Stop IQ Stream</button>
     </div>
-
-    <h3>IQ Live View</h3>
-    <div id="iqSpectrum" style="width:800px;height:360px;border:1px solid #ccc"></div>
-    <div id="iqTime" style="width:800px;height:240px;border:1px solid #ccc;margin-top:8px"></div>
-    <div id="iqConst" style="width:400px;height:400px;border:1px solid #ccc;margin-top:8px"></div>
 
     <script>
       const modeEl = document.getElementById('mode');
@@ -88,14 +90,109 @@
             lastMag = mag; lastFreqs = freqs;
             drawPlotly(mag, freqs);
             status.textContent = 'Preview ready';
-          }catch(err){ status.textContent = 'Worker data error: '+err; }
+          }catch(err){ status.textContent = 'Worker data error: '+err; console.error(err); }
         };
-      }catch(err){ console.warn('Could not create FFT worker', err); }
+        fftWorker.onerror = function(ev){
+          status.textContent = 'Worker error: ' + ev.message;
+          console.error('FFT Worker error:', ev);
+        };
+        status.textContent = 'Ready (FFT worker initialized)';
+      }catch(err){ console.warn('Could not create FFT worker', err); status.textContent = 'Warning: FFT worker not available'; }
 
-      modeEl.addEventListener('change', ()=>{
+      // Initialize mode-dependent UI
+      function updateModeUI(){
         iqParams.style.display = (modeEl.value === 'iq' || modeEl.value === 'sweep') ? 'block' : 'none';
         document.getElementById('sweepParams').style.display = modeEl.value === 'sweep' ? 'block' : 'none';
-      })
+      }
+      modeEl.addEventListener('change', updateModeUI);
+      
+      // Initialize blank spectrum on page load
+      function initSpectrum(){
+        const canvas = document.getElementById('spectrum');
+        console.log('Canvas element:', canvas);
+        console.log('Canvas size:', canvas.width, 'x', canvas.height);
+        
+        const ctx = canvas.getContext('2d');
+        if(!ctx){
+          status.textContent = 'ERROR: Could not get canvas context';
+          return;
+        }
+        
+        // Draw initial empty grid
+        drawGrid(ctx, canvas.width, canvas.height);
+        status.textContent = 'Canvas spectrum initialized';
+      }
+      
+      function drawGrid(ctx, w, h){
+        // Clear canvas
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, w, h);
+        
+        // Draw axes
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(60, 0);
+        ctx.lineTo(60, h);
+        ctx.lineTo(w, h);
+        ctx.stroke();
+        
+        // Draw grid lines
+        ctx.strokeStyle = '#ddd';
+        ctx.lineWidth = 1;
+        for(let i = 1; i < 5; i++){
+          const x = 60 + (w - 60) * (i / 5);
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, h);
+          ctx.stroke();
+          
+          const y = h * (i / 5);
+          ctx.beginPath();
+          ctx.moveTo(60, y);
+          ctx.lineTo(w, y);
+          ctx.stroke();
+        }
+        
+        // Draw labels
+        ctx.fillStyle = '#000';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Frequency (Hz)', (60 + w) / 2, h - 5);
+        
+        ctx.save();
+        ctx.translate(15, h / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.textAlign = 'center';
+        ctx.fillText('Relative dB', 0, 0);
+        ctx.restore();
+      }
+      
+      // Delay to ensure DOM ready
+      setTimeout(initSpectrum, 100);
+      updateModeUI();
+      
+      // Auto-generate initial preview on page load
+      window.addEventListener('load', ()=>{
+        setTimeout(()=>{
+          // Switch to IQ mode for preview
+          modeEl.value = 'iq';
+          updateModeUI();
+          status.textContent = 'Generating initial preview...';
+          const sample_rate = Number(document.getElementById('sample_rate').value)||1e6;
+          const tone_freq = Number(document.getElementById('tone_freq').value)||1e5;
+          let iq_length = Number(document.getElementById('iq_length').value)||16384;
+          const MAX_PREVIEW = 8192;
+          if (iq_length > MAX_PREVIEW) iq_length = MAX_PREVIEW;
+          function nextPow2(v){return 1<<Math.ceil(Math.log2(v));}
+          const N = nextPow2(iq_length);
+          if(fftWorker){
+            fftWorker.postMessage({cmd:'preview', sample_rate: sample_rate, tone_freq: tone_freq, N: N});
+          }else{
+            status.textContent = 'FFT worker not ready yet';
+          }
+        }, 500);
+      });
 
       document.getElementById('preview').addEventListener('click', async (e)=>{
         e.preventDefault();
@@ -143,37 +240,11 @@
       }
 
       function drawPlotly(mag, freqs, peakFreq=null, peakMag=null){
-        const N = mag.length;
-        let maxv = 1e-12;
-        for(let k=0;k<N;k++) if(mag[k]>maxv) maxv=mag[k];
-        const db = new Float64Array(N);
-        for(let k=0;k<N;k++) db[k]=20*Math.log10(mag[k]/maxv + 1e-12);
-        const trace = {
-          x: Array.from(freqs),
-          y: Array.from(db),
-          mode: 'lines',
-          name: 'Spectrum',
-          line: {color: '#0077cc'}
-        };
-        const traces = [trace];
-        let layout = {
-          margin: {l:60, r:10, t:20, b:60},
-          xaxis: {title: 'Frequency (Hz)', tickformat: ',.0f'},
-          yaxis: {title: 'Relative dB', autorange: true},
-        };
-        if(peakFreq !== null && peakMag !== null){
-          const peakDb = 20*Math.log10(peakMag / maxv + 1e-12);
-          traces.push({x:[peakFreq], y:[peakDb], mode:'markers', marker:{color:'red', size:8}, name:'Peak'});
-          layout.shapes = [{type: 'line', x0: peakFreq, x1: peakFreq, y0: -200, y1: 20, line:{color:'red', width:1, dash:'dash'}}];
-          document.getElementById('peakInfo').textContent = `Instant freq: ${formatHz(peakFreq)}, ${peakDb.toFixed(1)} dB`;
-        }else{
-          document.getElementById('peakInfo').textContent = '';
-        }
-        Plotly.react('spectrum', traces, layout, {displayModeBar: false});
-        document.getElementById('spectrumInfo').textContent = `Samples: ${N}, BW=${(freqs[N-1]-freqs[0]).toFixed(0)} Hz`;
+        // Use canvas-based drawing instead of Plotly
+        drawSpectrum(mag, freqs);
       }
 
-      function drawSpectrum(mag, freqs){
+      function drawSpectrum(mag, freqs, peakFreq=null, peakMag=null){
         const canvas = document.getElementById('spectrum');
         const ctx = canvas.getContext('2d');
         const W = canvas.width, H = canvas.height;
@@ -209,7 +280,7 @@
           ctx.beginPath(); ctx.moveTo(x, H-6); ctx.lineTo(x, H-2); ctx.strokeStyle='#000'; ctx.stroke();
         }
         // plot spectrum line
-        ctx.strokeStyle='#0077cc'; ctx.beginPath();
+        ctx.strokeStyle='#0077cc'; ctx.lineWidth = 2; ctx.beginPath();
         for(let k=0;k<N;k++){
           const x = xOffset + (k/(N-1))*plotW;
           const y = ((db[k]-maxdB)/(mindB-maxdB)) * H; // 0..H
@@ -219,8 +290,8 @@
         ctx.stroke();
         document.getElementById('spectrumInfo').textContent = `Samples: ${N}, BW=${(freqs[N-1]-freqs[0]).toFixed(0)} Hz`;
 
-        // clear previous peak info
-        document.getElementById('peakInfo').textContent = '';
+        // clear previous peak info if no peak
+        if(peakFreq === null) document.getElementById('peakInfo').textContent = '';
       }
 
       function formatHz(f){
@@ -240,89 +311,136 @@
         const peakFreq = freqs[maxIdx];
         const peakDb = 20*Math.log10(maxV / (Math.max.apply(null, mag) || 1e-12));
         document.getElementById('peakInfo').textContent = `Peak: ${formatHz(peakFreq)}, ${peakDb.toFixed(1)} dB`;
-        // draw vertical line and marker using Plotly
-        Plotly.relayout('spectrum', {'shapes': [{type:'line', x0:peakFreq, x1:peakFreq, y0:-200, y1:20, line:{color:'red', dash:'dash'}}]});
-        Plotly.addTraces('spectrum', {x:[peakFreq], y:[20*Math.log10(maxV/(Math.max.apply(null, mag)||1e-12)+1e-12)], mode:'markers', marker:{color:'red', size:8}}).catch(()=>{});
+        // Redraw spectrum with peak marker
+        drawSpectrum(mag, freqs, peakFreq, maxV);
       });
 
-      // IQ streaming handlers
-      let iqEventSource = null;
-      document.getElementById('startIQStream').addEventListener('click', async ()=>{
-        const payload = {
-          sample_rate: Number(document.getElementById('sample_rate').value)||1e6,
-          tone_freq: Number(document.getElementById('tone_freq').value)||1e5,
-          length: Math.min(Number(document.getElementById('iq_length').value)||1024, 4096),
-          interval: 0.2
-        };
-        await fetch('/start_iq_stream', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
-        // remember sample rate for live spectrum calculations
-        window.iqSampleRate = payload.sample_rate;
-        if(iqEventSource) iqEventSource.close();
-        iqEventSource = new EventSource('/iq_stream');
-        iqEventSource.onmessage = function(e){
-          try{
-            const d = JSON.parse(e.data);
-            if(d.keep) return;
-            const i = d.i; const q = d.q;
-            updateIQPlots(i,q);
-          }catch(err){ console.warn('iq parse', err); }
-        };
-      });
-
-      document.getElementById('stopIQStream').addEventListener('click', async ()=>{
-        await fetch('/stop_iq_stream', {method:'POST'});
-        if(iqEventSource){ iqEventSource.close(); iqEventSource=null; }
-      });
-
-      function updateIQPlots(iArr, qArr){
-        // time domain
-        const ttrace = { x: Array.from(Array(iArr.length).keys()), y: iArr, name:'I', line:{color:'#1f77b4'} };
-        const qtrace = { x: Array.from(Array(qArr.length).keys()), y: qArr, name:'Q', line:{color:'#ff7f0e'} };
-        const tlayout = {margin:{l:40,r:10,t:10,b:40}, yaxis:{title:'Amplitude'}};
-        Plotly.react('iqTime', [ttrace,qtrace], tlayout, {displayModeBar:false});
-        // constellation
-        const ctrace = { x: iArr, y: qArr, mode:'markers', marker:{size:4} };
-        const clayout = {margin:{l:40,r:10,t:10,b:40}, xaxis:{title:'I'}, yaxis:{title:'Q'} };
-        Plotly.react('iqConst', [ctrace], clayout, {displayModeBar:false});
-
-        // compute live spectrum and update live spectrum plot
+      // Upload handler
+      let uploadedIqPath = null;
+      document.getElementById('uploadIq').addEventListener('click', async ()=>{
+        const input = document.getElementById('iqFile');
+        if(!input.files || input.files.length===0){ alert('Select a file first'); return; }
+        const file = input.files[0];
+        const fd = new FormData(); fd.append('file', file);
+        status.textContent = 'Uploading...';
         try{
-          const fs = window.iqSampleRate || (Number(document.getElementById('sample_rate').value)||1e6);
-          const res = computeSpectrum(iArr, qArr, fs);
-          // find peak
-          let maxIdx = 0, maxV = -1;
-          for(let k=0;k<res.mag.length;k++){ if(res.mag[k]>maxV){ maxV=res.mag[k]; maxIdx=k; } }
-          const peakFreq = res.freqs[maxIdx];
-          const peakMag = res.mag[maxIdx];
-          updateLiveSpectrum(res.mag, res.freqs, peakFreq, peakMag);
-        }catch(err){ console.warn('live spectrum error', err); }
+          const r = await fetch('/upload_iq', {method:'POST', body: fd});
+          const j = await r.json();
+          if(j.status==='ok'){
+            uploadedIqPath = j.path;
+            document.getElementById('uploadedPath').textContent = uploadedIqPath;
+            document.getElementById('playUploaded').disabled = false;
+            status.textContent = 'Upload complete';
+            // start continuous preview loop for uploaded file
+            try{
+              stopPreviewLoop();
+              window.previewOffset = 0;
+              window.previewInterval = 0.2; // seconds
+              window.previewLength = Math.min(4096, Number(document.getElementById('iq_length').value)||4096);
+              window.previewFS = window.iqSampleRate || (Number(document.getElementById('sample_rate').value)||1e6);
+              // single-shot first draw
+              await fetchAndDrawPreview(uploadedIqPath, window.previewOffset, window.previewLength, window.previewFS);
+              // start timer
+              window.previewLoopHandle = setInterval(async ()=>{
+                try{
+                  window.previewOffset = (window.previewOffset + Math.round(window.previewFS * window.previewInterval)) >>> 0;
+                  await fetchAndDrawPreview(uploadedIqPath, window.previewOffset, window.previewLength, window.previewFS);
+                }catch(err){ console.warn('preview loop error', err); }
+              }, Math.round(window.previewInterval*1000));
+              status.textContent = 'Upload complete (preview looping)';
+            }catch(err){ console.warn('preview error', err); }
+          }else{
+            status.textContent = 'Upload error: '+(j.message||JSON.stringify(j));
+          }
+        }catch(err){ status.textContent = 'Upload failed: '+err; }
+      });
+
+      document.getElementById('playUploaded').addEventListener('click', async ()=>{
+        if(!uploadedIqPath){ alert('No uploaded file'); return; }
+        const payload = { path: uploadedIqPath, frequency: Number(document.getElementById('frequency').value)||1e9, level: Number(document.getElementById('level').value)||-10 };
+        status.textContent = 'Sending play request...';
+        try{
+          const r = await fetch('/play_iq_file', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+          const j = await r.json();
+          status.textContent = JSON.stringify(j);
+        }catch(err){ status.textContent = 'Play request failed: '+err; }
+      });
+
+      // helper: fetch preview window and draw
+      async function fetchAndDrawPreview(path, offset, length, fs){
+        const r = await fetch('/preview_iq', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({path: path, length: length, offset: offset})});
+        const p = await r.json();
+        if(p && p.status === 'ok'){
+          const i = p.i, q = p.q;
+          const res = computeSpectrum(i, q, fs);
+          lastMag = res.mag; lastFreqs = res.freqs;
+          drawPlotly(res.mag, res.freqs);
+        }
       }
 
-      function updateLiveSpectrum(mag, freqs, peakFreq, peakMag){
-        const N = mag.length;
-        let maxv = 1e-12;
-        for(let k=0;k<N;k++) if(mag[k]>maxv) maxv=mag[k];
-        const db = new Float64Array(N);
-        for(let k=0;k<N;k++) db[k]=20*Math.log10(mag[k]/maxv + 1e-12);
-        const trace = {
-          x: Array.from(freqs),
-          y: Array.from(db),
-          mode: 'lines',
-          name: 'Spectrum',
-          line: {color: '#0077cc'}
-        };
-        const traces = [trace];
-        const peakDb = 20*Math.log10(peakMag / maxv + 1e-12);
-        traces.push({x:[peakFreq], y:[peakDb], mode:'markers', marker:{color:'red', size:8}, name:'Peak', hoverinfo:'skip'});
-        const layout = {
-          margin: {l:60, r:10, t:20, b:60},
-          xaxis: {title: 'Frequency (Hz)', tickformat: ',.0f'},
-          yaxis: {title: 'Relative dB', autorange: true},
-          shapes: [{type: 'line', x0: peakFreq, x1: peakFreq, y0: -200, y1: 20, line:{color:'red', width:1, dash:'dash'}}],
-          showlegend: false
-        };
-        Plotly.react('iqSpectrum', traces, layout, {displayModeBar: false});
+      function stopPreviewLoop(){
+        if(window.previewLoopHandle){ clearInterval(window.previewLoopHandle); window.previewLoopHandle = null; }
       }
+
+        // Upload handler
+        let uploadedIqPath = null;
+        document.getElementById('uploadIq').addEventListener('click', async ()=>{
+          const input = document.getElementById('iqFile');
+          if(!input.files || input.files.length===0){ alert('Select a file first'); return; }
+          const file = input.files[0];
+          const fd = new FormData(); fd.append('file', file);
+          status.textContent = 'Uploading...';
+          try{
+            const r = await fetch('/upload_iq', {method:'POST', body: fd});
+            const j = await r.json();
+            if(j.status==='ok'){
+              uploadedIqPath = j.path;
+              document.getElementById('uploadedPath').textContent = uploadedIqPath;
+              document.getElementById('playUploaded').disabled = false;
+              status.textContent = 'Upload complete';
+            // start continuous preview loop for uploaded file
+            try{
+              stopPreviewLoop();
+              window.previewOffset = 0;
+              window.previewInterval = 0.2; // seconds
+              window.previewLength = Math.min(4096, Number(document.getElementById('iq_length').value)||4096);
+              window.previewFS = window.iqSampleRate || (Number(document.getElementById('sample_rate').value)||1e6);
+              // single-shot first draw
+              await fetchAndDrawPreview(uploadedIqPath, window.previewOffset, window.previewLength, window.previewFS);
+              // start timer
+              window.previewLoopHandle = setInterval(async ()=>{
+                try{
+                  window.previewOffset = (window.previewOffset + Math.round(window.previewFS * window.previewInterval)) >>> 0;
+                  await fetchAndDrawPreview(uploadedIqPath, window.previewOffset, window.previewLength, window.previewFS);
+                }catch(err){ console.warn('preview loop error', err); }
+              }, Math.round(window.previewInterval*1000));
+              status.textContent = 'Upload complete (preview looping)';
+              document.getElementById('stopPreviewBtn').style.display = 'inline-block';
+            }catch(err){ console.warn('preview error', err); }
+            }else{
+              status.textContent = 'Upload error: '+(j.message||JSON.stringify(j));
+            }
+          }catch(err){ status.textContent = 'Upload failed: '+err; }
+        });
+
+        document.getElementById('playUploaded').addEventListener('click', async ()=>{
+          if(!uploadedIqPath){ alert('No uploaded file'); return; }
+          const payload = { path: uploadedIqPath, frequency: Number(document.getElementById('frequency').value)||1e9, level: Number(document.getElementById('level').value)||-10 };
+          status.textContent = 'Sending play request...';
+          try{
+            const r = await fetch('/play_iq_file', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+            const j = await r.json();
+            status.textContent = JSON.stringify(j);
+          }catch(err){ status.textContent = 'Play request failed: '+err; }
+        });
+
+        document.getElementById('stopPreviewBtn').addEventListener('click', ()=>{
+          stopPreviewLoop();
+          document.getElementById('stopPreviewBtn').style.display = 'none';
+          status.textContent = 'Preview loop stopped';
+        });
+
+
 
       function fft(re,im){
         const n = re.length;
@@ -397,7 +515,8 @@
               // update instantaneous marker on plot
               const f = j.frequency;
               document.getElementById('peakInfo').textContent = `Instant freq: ${formatHz(f)}`;
-              Plotly.relayout('spectrum', {'shapes': [{type:'line', x0:f, x1:f, y0:-200, y1:20, line:{color:'red', dash:'dash'}}]});
+              // Note: sweep marker display via canvas would require re-rendering on each update
+              // For now, just update the frequency text display
             }
           }catch(e){ /* ignore */ }
         }, 200);
