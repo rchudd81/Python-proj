@@ -1,17 +1,24 @@
+import numpy as np
+import sys
+from scipy.signal import upfirdn, fir_filter_design, kaiserord, firwin
+from scipy.signal import lfilter
+import math
+import ctypes
+import os
+from ctypes import byref, c_int, c_double
 
-def plot_spectrum(signals, sample_rate):
-    import numpy as np
-    import subprocess
-    import sys
-    iq = generate_composite_iq(signals, sample_rate)
-    N = len(iq)
-    window = np.hanning(N)
-    iq_win = iq * window
-    spectrum = np.fft.fftshift(np.fft.fft(iq_win))
-    freqs = np.fft.fftshift(np.fft.fftfreq(N, d=1/sample_rate))
-    power = 20 * np.log10(np.abs(spectrum) + 1e-12)
-    np.savez('spectrum_data.npz', freqs=freqs, power=power)
-    subprocess.Popen([sys.executable, 'vsg_plot.py', 'spectrum_data.npz'])
+# 1. Point to the directory containing your Signal Hound .dll
+dll_dir = r"C:\Users\Richard\Python-proj\vsg60_series\lib\win\vs2019\x64"
+if not os.path.exists(dll_dir):
+    print(f"Error: Path not found: {dll_dir}")
+else:
+    os.add_dll_directory(dll_dir)
+# 2. Load the API
+try:
+    vsg = ctypes.cdll.LoadLibrary("vsg_api.dll")
+except Exception as e:
+    print(f"Failed to load DLL: {e}")
+    exit()
 
 # 3. Setup variables
 handle = c_int(-1)
@@ -201,19 +208,23 @@ def main():
         print_menu(frequency_hz, level_dbm, tx_enabled, sample_rate, signals)
         choice = input('Select option: ').strip().lower()
         if choice == '1':
-            val = input('Enter frequency (e.g. 1.23GHz, 1230MHz, 1230000000Hz): ').strip()
-            try:
-                frequency_hz = parse_frequency(val)
-                apply_frequency(handle, frequency_hz)
-            except ValueError:
-                print('Invalid frequency format.')
+            while True:
+                val = input('Enter frequency (e.g. 1.23GHz, 1230MHz, 1230000000Hz): ').strip()
+                try:
+                    frequency_hz = parse_frequency(val)
+                    apply_frequency(handle, frequency_hz)
+                    break
+                except ValueError:
+                    print('Invalid frequency format. Please try again.')
         elif choice == '2':
-            val = input('Enter level in dBm (e.g. -60.0): ').strip()
-            try:
-                level_dbm = float(val)
-                apply_level(handle, level_dbm)
-            except Exception:
-                print('Invalid level value.')
+            while True:
+                val = input('Enter level in dBm (e.g. -60.0): ').strip().replace(',', '.')
+                try:
+                    level_dbm = float(val)
+                    apply_level(handle, level_dbm)
+                    break
+                except Exception:
+                    print('Invalid level value. Please enter a valid number.')
         elif choice == '3':
             if not tx_enabled:
                 try:
@@ -222,7 +233,7 @@ def main():
                     print('Single CW transmit enabled (CW output started).')
                 except Exception as e:
                     print(f'Failed to enable single CW transmit: {e}')
-                update_spectrum_plot(signals, sample_rate)
+                # No spectrum plot update here
                 try:
                     vsg.vsgAbort(handle)
                     tx_enabled = False
@@ -230,27 +241,39 @@ def main():
                 except Exception as e:
                     print(f'Failed to disable single CW transmit: {e}')
         elif choice == '4':
-            val = input('Enter sample rate (e.g. 10e6 for 10 MHz): ').strip()
-            try:
-                sample_rate = float(val)
-                print(f'Sample rate set to {sample_rate/1e6:.3f} MHz')
-            except Exception:
-                print('Invalid sample rate value.')
+            while True:
+                val = input('Enter sample rate (e.g. 10e6 for 10 MHz): ').strip().replace(',', '.')
+                try:
+                    sample_rate = float(val)
+                    if sample_rate > 0:
+                        print(f'Sample rate set to {sample_rate/1e6:.3f} MHz')
+                        break
+                    else:
+                        print('Sample rate must be positive.')
+                except Exception:
+                    print('Invalid sample rate value. Please enter a valid number.')
         elif choice == '5':
             print('Add a CW spike (signal)')
-            try:
-                rel_freq = input('Enter signal offset from center (Hz, e.g. 0, 1e6, -2e6): ').strip()
-                rel_freq = float(rel_freq)
-                if abs(rel_freq) > sample_rate/2:
-                    print('Offset must be within +/- half the sample rate.')
-                    continue
-                gain = input('Enter signal gain (dBm, e.g. -30): ').strip()
-                gain = float(gain)
-                signals.append({'type': 'cw', 'freq_offset': rel_freq, 'gain_dbm': gain, 'enabled': True})
-                print(f'Added CW signal: offset {rel_freq/1e6:.3f} MHz, gain {gain:.1f} dBm, enabled')
-                update_spectrum_plot(signals, sample_rate)
-            except Exception:
-                print('Invalid input for signal.')
+            while True:
+                try:
+                    rel_freq = input('Enter signal offset from center (Hz, e.g. 0, 1e6, -2e6): ').strip().replace(',', '.')
+                    rel_freq = float(rel_freq)
+                    if abs(rel_freq) > sample_rate/2:
+                        print('Offset must be within +/- half the sample rate.')
+                        continue
+                    break
+                except Exception:
+                    print('Invalid frequency offset. Please enter a valid number.')
+            while True:
+                try:
+                    gain = input('Enter signal gain (dBm, e.g. -30): ').strip().replace(',', '.')
+                    gain = float(gain)
+                    break
+                except Exception:
+                    print('Invalid gain. Please enter a valid number.')
+            signals.append({'type': 'cw', 'freq_offset': rel_freq, 'gain_dbm': gain, 'enabled': True})
+            print(f'Added CW signal: offset {rel_freq/1e6:.3f} MHz, gain {gain:.1f} dBm, enabled')
+            # No spectrum plot update here
         elif choice == '6':
             print('Add a PSK signal (BPSK/QPSK/8PSK)')
             try:
@@ -261,28 +284,37 @@ def main():
                     return
                 gain = input('Enter signal gain (dBm, e.g. -30): ').strip()
                 gain = float(gain)
-                mod_type = input('Enter PSK type (bpsk, qpsk, 8psk): ').strip().lower()
-                if mod_type not in ['bpsk', 'qpsk', '8psk']:
-                    print('Invalid PSK type.')
-                    return
-                rolloff = input('Enter RRC roll-off (0.2, 0.25, 0.3, 0.35): ').strip()
-                try:
-                    rolloff = float(rolloff)
-                    if rolloff not in [0.2, 0.25, 0.3, 0.35]:
-                        print('Invalid roll-off value.')
-                        return
-                except Exception:
-                    print('Invalid roll-off value.')
-                    return
-                symrate = input('Enter symbol rate (symbols/sec, e.g. 1e6): ').strip()
-                try:
-                    symrate = float(symrate)
-                except Exception:
-                    print('Invalid symbol rate.')
-                    return
+                while True:
+                    mod_type = input('Enter PSK type (bpsk, qpsk, 8psk): ').strip().lower()
+                    if mod_type in ['bpsk', 'qpsk', '8psk']:
+                        break
+                    else:
+                        print('Invalid PSK type. Please enter one of: bpsk, qpsk, 8psk')
+                # RRC roll-off input with re-prompt
+                while True:
+                    rolloff_str = input('Enter RRC roll-off (0.2, 0.25, 0.3, 0.35): ').strip().replace(',', '.')
+                    try:
+                        rolloff = float(rolloff_str)
+                        if rolloff in [0.2, 0.25, 0.3, 0.35]:
+                            break
+                        else:
+                            print('Invalid roll-off value. Please enter one of: 0.2, 0.25, 0.3, 0.35')
+                    except Exception:
+                        print('Invalid roll-off value. Please enter a valid number.')
+                # Symbol rate input with re-prompt
+                while True:
+                    symrate_str = input('Enter symbol rate (symbols/sec, e.g. 1e6): ').strip().replace(',', '.')
+                    try:
+                        symrate = float(symrate_str)
+                        if symrate > 0:
+                            break
+                        else:
+                            print('Symbol rate must be positive.')
+                    except Exception:
+                        print('Invalid symbol rate. Please enter a valid number.')
                 signals.append({'type': 'psk', 'mod_type': mod_type, 'freq_offset': rel_freq, 'gain_dbm': gain, 'rolloff': rolloff, 'symrate': symrate, 'enabled': True})
                 print(f'Added {mod_type.upper()} signal: offset {rel_freq/1e6:.3f} MHz, gain {gain:.1f} dBm, rolloff {rolloff}, symrate {symrate}, enabled')
-                update_spectrum_plot(signals, sample_rate)
+                # No spectrum plot update here
             except Exception:
                 print('Invalid input for PSK signal.')
         elif choice == '7':
@@ -312,29 +344,34 @@ def main():
                 elif sig['type'] == 'psk':
                     desc = f'{sig["mod_type"].upper()}: Offset: {sig["freq_offset"]/1e6:.3f} MHz, Gain: {sig["gain_dbm"]:.1f} dBm, RRC: {sig["rolloff"]}, SymRate: {sig["symrate"]}, {status}'
                 print(f'  {i+1}) {desc}')
-            try:
-                idx = int(input('Enter signal number: ')) - 1
-                if idx < 0 or idx >= len(signals):
-                    print('Invalid signal number.')
-                    continue
-                sig = signals[idx]
-                print('Edit options:')
-                print('  1) Edit frequency offset')
-                print('  2) Edit gain')
-                if sig['type'] == 'psk':
-                    print('  3) Edit RRC roll-off')
-                    print('  4) Edit symbol rate')
-                    print('  5) Enable/disable')
-                    print('  6) Remove signal')
-                    print('  q) Cancel')
-                else:
-                    print('  3) Enable/disable')
-                    print('  4) Remove signal')
-                    print('  q) Cancel')
-                opt = input('Select option: ').strip().lower()
-                changed = False
-                if opt == '1':
-                    val = input('Enter new offset from center (Hz): ').strip()
+            while True:
+                try:
+                    idx = int(input('Enter signal number: ')) - 1
+                    if idx < 0 or idx >= len(signals):
+                        print('Invalid signal number. Please try again.')
+                        continue
+                    break
+                except Exception:
+                    print('Invalid input. Please enter a valid number.')
+            sig = signals[idx]
+            print('Edit options:')
+            print('  1) Edit frequency offset')
+            print('  2) Edit gain')
+            if sig['type'] == 'psk':
+                print('  3) Edit RRC roll-off')
+                print('  4) Edit symbol rate')
+                print('  5) Enable/disable')
+                print('  6) Remove signal')
+                print('  q) Cancel')
+            else:
+                print('  3) Enable/disable')
+                print('  4) Remove signal')
+                print('  q) Cancel')
+            opt = input('Select option: ').strip().lower()
+            changed = False
+            if opt == '1':
+                while True:
+                    val = input('Enter new offset from center (Hz): ').strip().replace(',', '.')
                     try:
                         new_offset = float(val)
                         if abs(new_offset) > sample_rate/2:
@@ -343,52 +380,60 @@ def main():
                             sig['freq_offset'] = new_offset
                             print('Offset updated.')
                             changed = True
+                            break
                     except Exception:
-                        print('Invalid offset.')
-                elif opt == '2':
-                    val = input('Enter new gain (dBm): ').strip()
+                        print('Invalid offset. Please enter a valid number.')
+            elif opt == '2':
+                while True:
+                    val = input('Enter new gain (dBm): ').strip().replace(',', '.')
                     try:
                         sig['gain_dbm'] = float(val)
                         print('Gain updated.')
                         changed = True
+                        break
                     except Exception:
-                        print('Invalid gain.')
-                elif sig['type'] == 'psk' and opt == '3':
-                    val = input('Enter new RRC roll-off (0.2, 0.25, 0.3, 0.35): ').strip()
+                        print('Invalid gain. Please enter a valid number.')
+            elif sig['type'] == 'psk' and opt == '3':
+                while True:
+                    val = input('Enter new RRC roll-off (0.2, 0.25, 0.3, 0.35): ').strip().replace(',', '.')
                     try:
                         rolloff = float(val)
-                        if rolloff not in [0.2, 0.25, 0.3, 0.35]:
-                            print('Invalid roll-off value.')
-                        else:
+                        if rolloff in [0.2, 0.25, 0.3, 0.35]:
                             sig['rolloff'] = rolloff
                             print('RRC roll-off updated.')
                             changed = True
+                            break
+                        else:
+                            print('Invalid roll-off value. Please enter one of: 0.2, 0.25, 0.3, 0.35')
                     except Exception:
-                        print('Invalid roll-off.')
-                elif sig['type'] == 'psk' and opt == '4':
-                    val = input('Enter new symbol rate (symbols/sec): ').strip()
+                        print('Invalid roll-off. Please enter a valid number.')
+            elif sig['type'] == 'psk' and opt == '4':
+                while True:
+                    val = input('Enter new symbol rate (symbols/sec): ').strip().replace(',', '.')
                     try:
-                        sig['symrate'] = float(val)
-                        print('Symbol rate updated.')
-                        changed = True
+                        symrate = float(val)
+                        if symrate > 0:
+                            sig['symrate'] = symrate
+                            print('Symbol rate updated.')
+                            changed = True
+                            break
+                        else:
+                            print('Symbol rate must be positive.')
                     except Exception:
-                        print('Invalid symbol rate.')
-                elif (sig['type'] == 'psk' and opt == '5') or (sig['type'] == 'cw' and opt == '3'):
-                    sig['enabled'] = not sig.get('enabled', True)
-                    print('Signal is now ' + ('ENABLED' if sig['enabled'] else 'DISABLED'))
-                    changed = True
-                elif (sig['type'] == 'psk' and opt == '6') or (sig['type'] == 'cw' and opt == '4'):
-                    signals.pop(idx)
-                    print('Signal removed.')
-                    changed = True
-                elif opt == 'q':
-                    print('Edit cancelled.')
-                else:
-                    print('Unknown edit option.')
-                if changed:
-                    update_spectrum_plot(signals, sample_rate)
-            except Exception:
-                print('Invalid input.')
+                        print('Invalid symbol rate. Please enter a valid number.')
+            elif (sig['type'] == 'psk' and opt == '5') or (sig['type'] == 'cw' and opt == '3'):
+                sig['enabled'] = not sig.get('enabled', True)
+                print('Signal is now ' + ('ENABLED' if sig['enabled'] else 'DISABLED'))
+                changed = True
+            elif (sig['type'] == 'psk' and opt == '6') or (sig['type'] == 'cw' and opt == '4'):
+                signals.pop(idx)
+                print('Signal removed.')
+                changed = True
+            elif opt == 'q':
+                print('Edit cancelled.')
+            else:
+                print('Unknown edit option.')
+            # No spectrum plot update here
 
         elif choice == '9':
             # Toggle composite IQ transmit
@@ -424,15 +469,29 @@ def main():
                 except Exception as e:
                     print(f'Failed to disable composite IQ transmit: {e}')
             # Always update spectrum plot after toggling transmit
-            update_spectrum_plot(signals, sample_rate)
+            # No spectrum plot update here
         elif choice == '10':
+            print('Plotting spectrum of current composite IQ...')
             try:
-                plot_spectrum(signals, sample_rate)
+                iq = generate_composite_iq(signals, sample_rate)
+                print(f'DEBUG: IQ max={np.max(np.abs(iq))}, min={np.min(np.abs(iq))}')
+                # Compute FFT and save to file
+                spectrum = np.fft.fftshift(np.fft.fft(iq))
+                print(f'DEBUG: Spectrum max={np.max(np.abs(spectrum))}, min={np.min(np.abs(spectrum))}')
+                freqs = np.fft.fftshift(np.fft.fftfreq(len(iq), d=1.0/sample_rate))
+                np.savez('spectrum_data.npz', spectrum=spectrum, freqs=freqs, sample_rate=sample_rate)
+                # Launch plot window with file argument
+                import subprocess, sys, os
+                subprocess.Popen([
+                    sys.executable,
+                    os.path.join(os.path.dirname(__file__), 'vsg_plot.py'),
+                    'spectrum_data.npz'
+                ])
+                print('Launched spectrum plot window.')
             except Exception as e:
-                print(f'Failed to save or plot spectrum data: {e}')
+                print(f'Failed to plot spectrum: {e}')
 
         elif choice == 'q':
-            close_spectrum_plot()
             break
         else:
             print('Unknown option.')
@@ -444,7 +503,6 @@ def main():
     except Exception:
         pass
     vsg.vsgCloseDevice(handle)
-    close_spectrum_plot()
     print('Device closed.')
 
 
