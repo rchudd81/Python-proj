@@ -422,6 +422,17 @@
             </div>
             <div class="helper-text">Negative for West (e.g., -101 for SES-1)</div>
         </div>
+
+        <div class="input-group">
+            <label>Polarization Angle Range</label>
+            <div class="input-wrapper">
+                <select id="angleRange" style="width:100%;padding:14px 16px;font-size:16px;border:2px solid #e0e0e0;border-radius:12px;background:#fafafa;">
+                    <option value="normalized" selected>-90° to +90° (normalized)</option>
+                    <option value="full">0° to 360° (full circle)</option>
+                </select>
+            </div>
+            <div class="helper-text">Choose how polarization angles are displayed</div>
+        </div>
         
         <div class="button-group">
             <button class="primary" onclick="calculateSkew()">
@@ -629,21 +640,18 @@
         
         function normalizeAngle(angle) {
             // Normalize any angle to -90 to +90 range
-            // First, bring it to 0-360 range
             angle = angle % 360;
             if (angle < 0) angle += 360;
-            
-            // Convert to -180 to 180 range
             if (angle > 180) angle -= 360;
-            
-            // Now convert to -90 to 90 by finding the equivalent angle
-            // For angles > 90, reflect around 90/270
-            if (angle > 90) {
-                angle = 180 - angle;
-            } else if (angle < -90) {
-                angle = -180 - angle;
-            }
-            
+            if (angle > 90) angle = 180 - angle;
+            if (angle < -90) angle = -180 - angle;
+            return angle;
+        }
+
+        function fullCircleAngle(angle) {
+            // Normalize any angle to 0 to 360 range
+            angle = angle % 360;
+            if (angle < 0) angle += 360;
             return angle;
         }
         
@@ -727,34 +735,43 @@
             let rawVertical = skewDeg;
             let rawHorizontal = 90 + skewDeg;
             
-            // Normalize both to -90 to +90
-            let verticalAngle = normalizeAngle(rawVertical);
-            let horizontalAngle = normalizeAngle(rawHorizontal);
-            
-            // Verify that H and V are perpendicular (90° apart)
-            // If not, adjust horizontal to maintain perpendicular relationship
-            let angleDiff = Math.abs(horizontalAngle - verticalAngle);
-            if (angleDiff > 100) {
-                // If difference is large, adjust by subtracting 180
-                horizontalAngle = normalizeAngle(horizontalAngle - 180);
-            } else if (angleDiff < 80) {
-                // If too close, adjust by adding/subtracting 90
-                if (verticalAngle >= 0) {
-                    horizontalAngle = verticalAngle - 90;
-                } else {
-                    horizontalAngle = verticalAngle + 90;
+            // Get selected angle range
+            const angleRange = document.getElementById('angleRange').value;
+
+            let verticalAngle, horizontalAngle;
+            if (angleRange === 'normalized') {
+                verticalAngle = normalizeAngle(rawVertical);
+                horizontalAngle = normalizeAngle(rawHorizontal);
+                // Ensure perpendicularity
+                let angleDiff = Math.abs(horizontalAngle - verticalAngle);
+                if (angleDiff > 100) {
+                    horizontalAngle = normalizeAngle(horizontalAngle - 180);
+                } else if (angleDiff < 80) {
+                    if (verticalAngle >= 0) {
+                        horizontalAngle = verticalAngle - 90;
+                    } else {
+                        horizontalAngle = verticalAngle + 90;
+                    }
+                    horizontalAngle = normalizeAngle(horizontalAngle);
                 }
-                horizontalAngle = normalizeAngle(horizontalAngle);
+            } else {
+                verticalAngle = fullCircleAngle(rawVertical);
+                horizontalAngle = fullCircleAngle(rawHorizontal);
+                // Ensure perpendicularity
+                let angleDiff = Math.abs(horizontalAngle - verticalAngle);
+                if (angleDiff !== 90) {
+                    horizontalAngle = fullCircleAngle(verticalAngle + 90);
+                }
             }
-            
+
             // Display results
             document.getElementById('result').style.display = 'block';
-            
+
             // Update azimuth and elevation
             document.getElementById('azimuth').innerHTML = azimuthDeg.toFixed(1) + '<span class="result-unit">°</span>';
             document.getElementById('elevation').innerHTML = elevationDeg.toFixed(1) + '<span class="result-unit">°</span>';
             document.getElementById('direction').textContent = getCompassDirection(azimuthDeg);
-            
+
             // Update LNB skew
             document.getElementById('skew').innerHTML = skewDeg.toFixed(1) + '<span class="result-unit">°</span>';
             const skewNote = document.getElementById('skewNote');
@@ -765,42 +782,42 @@
             } else {
                 skewNote.innerHTML = 'No rotation needed';
             }
-            
+
             // Update polarization angles
             document.getElementById('verticalAngle').innerHTML = verticalAngle.toFixed(1) + '°';
             document.getElementById('horizontalAngle').innerHTML = horizontalAngle.toFixed(1) + '°';
-            
+
             // Update descriptions
             document.getElementById('verticalDesc').innerHTML = getPolarizationDescription(verticalAngle);
             document.getElementById('horizontalDesc').innerHTML = getPolarizationDescription(horizontalAngle);
-            
+
             // Update angle notes
             document.getElementById('verticalNote').innerHTML = getAngleNote(verticalAngle, 'V');
             document.getElementById('horizontalNote').innerHTML = getAngleNote(horizontalAngle, 'H');
-            
+
             // Update instructions
             const arrow = document.getElementById('arrow');
             const instructionText = document.getElementById('instructionText');
             const instructionDetail = document.getElementById('instructionDetail');
-            
+
             if (skewDeg > 0.1) {
                 arrow.innerHTML = '↻';
                 instructionText.textContent = `Rotate LNB ${skewDeg.toFixed(1)}° CLOCKWISE`;
-                instructionDetail.textContent = 'Then use normalized H/V angles below';
+                instructionDetail.textContent = angleRange === 'normalized' ? 'Then use normalized H/V angles below' : 'Then use full circle H/V angles below';
             } else if (skewDeg < -0.1) {
                 arrow.innerHTML = '↺';
                 instructionText.textContent = `Rotate LNB ${Math.abs(skewDeg).toFixed(1)}° COUNTER-CLOCKWISE`;
-                instructionDetail.textContent = 'Then use normalized H/V angles below';
+                instructionDetail.textContent = angleRange === 'normalized' ? 'Then use normalized H/V angles below' : 'Then use full circle H/V angles below';
             } else {
                 arrow.innerHTML = '⬆️';
                 instructionText.textContent = 'No skew rotation needed';
-                instructionDetail.textContent = 'Use normalized H/V angles below';
+                instructionDetail.textContent = angleRange === 'normalized' ? 'Use normalized H/V angles below' : 'Use full circle H/V angles below';
             }
-            
+
             // Update detailed instructions
             const polarityNote = document.getElementById('polarityNote');
             polarityNote.innerHTML = `
-                <strong>LNB Setup Instructions (-90° to +90° range):</strong><br>
+                <strong>LNB Setup Instructions (${angleRange === 'normalized' ? '-90° to +90°' : '0° to 360°'} range):</strong><br>
                 • <strong>Step 1:</strong> Rotate entire LNB by <strong>${skewDeg.toFixed(1)}°</strong> (skew)<br>
                 • <strong>Step 2:</strong> For V transponders: align vertical probe to <strong>${verticalAngle.toFixed(1)}°</strong><br>
                 • <strong>Step 3:</strong> For H transponders: align horizontal probe to <strong>${horizontalAngle.toFixed(1)}°</strong><br>
@@ -808,10 +825,10 @@
                 • <strong>Positive angle</strong> = clockwise from reference<br>
                 • <strong>Negative angle</strong> = counter-clockwise from reference
             `;
-            
+
             // Update formula note
             const formulaNote = document.getElementById('formulaNote');
-            formulaNote.innerHTML = `📍 ${Math.abs(lat).toFixed(4)}°${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lon).toFixed(4)}°${lon >= 0 ? 'E' : 'W'} • All angles normalized to -90° to +90°`;
+            formulaNote.innerHTML = `📍 ${Math.abs(lat).toFixed(4)}°${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lon).toFixed(4)}°${lon >= 0 ? 'E' : 'W'} • All angles ${angleRange === 'normalized' ? 'normalized to -90° to +90°' : 'shown as 0° to 360°'}`;
         }
         
         function getCompassDirection(azimuth) {
@@ -860,7 +877,6 @@
                 e.target.style.borderColor = '#e0e0e0';
             }
         });
-        
         document.getElementById('lon').addEventListener('input', function(e) {
             let val = parseFloat(e.target.value);
             if (!isNaN(val) && (val < -180 || val > 180)) {
@@ -869,7 +885,6 @@
                 e.target.style.borderColor = '#e0e0e0';
             }
         });
-        
         document.getElementById('sat').addEventListener('input', function(e) {
             let val = parseFloat(e.target.value);
             if (!isNaN(val) && (val < -180 || val > 180)) {
@@ -877,6 +892,9 @@
             } else {
                 e.target.style.borderColor = '#e0e0e0';
             }
+        });
+        document.getElementById('angleRange').addEventListener('change', function() {
+            calculateSkew();
         });
     </script>
 </body>
