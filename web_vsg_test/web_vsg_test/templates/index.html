@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transmit to VSG</title>
+</head>
+<body>
+    <h1>Transmit to VSG</h1>
+    <button id="transmitVsgBtn" type="button" style="padding:8px 16px;font-size:14px;background:#059669;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-left:12px;">Transmit to VSG</button>
+    <span id="transmitStatus" style="margin-left:12px;color:#059669;"></span>
+    <script>
+        // Transmit to VSG toggle
+        let transmitOn = false;
+        const transmitBtn = document.getElementById('transmitVsgBtn');
+        const statusEl = document.getElementById('transmitStatus');
+        transmitBtn.onclick = async function() {
+            statusEl.textContent = transmitOn ? 'Stopping transmit...' : 'Transmitting...';
+            try {
+                const resp = await fetch(transmitOn ? '/abort_vsg' : '/transmit_vsg', {method: 'POST'});
+                const result = await resp.json();
+                if(result.status === 'ok') {
+                    transmitOn = !transmitOn;
+                    transmitBtn.textContent = transmitOn ? 'Stop Transmit' : 'Transmit to VSG';
+                    statusEl.textContent = result.message;
+                    statusEl.style.color = '#059669';
+                } else {
+                    statusEl.textContent = result.message || 'Transmit failed';
+                    statusEl.style.color = 'red';
+                }
+            } catch(err) {
+                statusEl.textContent = 'Transmit error: ' + err;
+                statusEl.style.color = 'red';
+            }
+        };
+    </script>
+</body>
+</html>

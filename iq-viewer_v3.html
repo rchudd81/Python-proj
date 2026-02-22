@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SDR IQ Tools Suite</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        body { background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #0f172a 100%); min-height: 100vh; }
+        .tab-content { display: none; }
+        .active-tab { display: block; }
+        canvas { image-rendering: pixelated; }
+    </style>
+</head>
+<body class="p-8 text-white">
+    <div class="max-w-6xl mx-auto space-y-6">
+        <div class="bg-slate-800/50 backdrop-blur-sm rounded-lg shadow-2xl border border-slate-700 p-8">
+            <h1 class="text-3xl font-bold mb-6">SDR IQ Tools Suite</h1>
+
+            <div id="viewerTab" class="tab-content active-tab space-y-6">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="space-y-4">
+                        <label class="block p-4 bg-slate-700 hover:bg-slate-600 rounded-lg cursor-pointer text-center border-2 border-dashed border-slate-500">
+                            Select IQ File (.sdriq)
+                            <input type="file" id="fileInput" accept=".sdriq,.iq" class="hidden" onchange="handleFileSelect()">
+                        </label>
+                        <div class="flex gap-2">
+                            <select id="fftSize" class="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-sm flex-grow">
+                                <option value="1024">1024</option>
+                                <option value="2048" selected>2048</option>
+                                <option value="4096">4096</option>
+                            </select>
+                            <button onclick="playFile()" id="playBtn" disabled class="px-6 py-2 bg-green-600 hover:bg-green-700 rounded disabled:opacity-50">Play</button>
+                            <button onclick="stopFile()" id="stopBtn" disabled class="px-6 py-2 bg-red-600 hover:bg-red-700 rounded disabled:opacity-50">Stop</button>
+                        </div>
+                        
+                        <div class="flex gap-2">
+                            <button id="toggleMax" onclick="toggleMax()" class="flex-1 py-1 text-xs font-bold bg-slate-700 border border-slate-600 rounded transition-all">Max Hold: OFF</button>
+                            <button id="toggleMin" onclick="toggleMin()" class="flex-1 py-1 text-xs font-bold bg-slate-700 border border-slate-600 rounded transition-all">Min Hold: OFF</button>
+                            <button onclick="resetPeakHold()" class="flex-1 py-1 text-xs font-bold bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded">Clear Traces</button>
+                        </div>
+                        <div class="flex gap-2 mt-2">
+                            <button onclick="previewBackendSignal()" class="flex-1 py-1 text-xs font-bold bg-blue-600 hover:bg-blue-700 border border-slate-600 rounded">Preview Backend Signal</button>
+                            <button onclick="stopBackendStream()" class="flex-1 py-1 text-xs font-bold bg-red-600 hover:bg-red-700 border border-slate-600 rounded">Stop Backend Stream</button>
+                            <label class="flex-1 py-1 text-xs font-bold bg-slate-700 border border-slate-600 rounded text-center">Update Rate (ms): <input id="backendUpdateRate" type="number" value="200" min="50" max="2000" style="width:60px;"/></label>
+                        </div>
+                    </div>
+                    
+                    <div class="p-4 bg-slate-900/50 rounded-lg border border-slate-600 text-sm font-mono space-y-1">
+                        <div class="flex justify-between"><span>Sample Rate:</span><span id="srDisp">-</span></div>
+                        <div class="flex justify-between"><span>Bandwidth:</span><span id="bwDisp">-</span></div>
+                        <div class="flex justify-between"><span>Duration:</span><span id="durDisp">-</span></div>
+                    </div>
+                </div>
+
+                <div id="spectrumPlot" class="bg-slate-900/50 rounded-lg border border-slate-600" style="height: 400px;"></div>
+                <canvas id="waterfallCanvas" class="w-full bg-black rounded-lg border border-slate-600" style="height: 300px;"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let fileData = null, sampleRate = 0, totalSamples = 0, currentSample = 0;
+        let isPlaying = false, playInterval = null, waterfallCtx = null, waterfallRows = [];
+        let maxHold = null, minHold = null, showMax = false, showMin = false;
+        const maxHistory = 150;
+
+        function handleFileSelect() {
+            const file = document.getElementById('fileInput').files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const view = new DataView(e.target.result);
+                sampleRate = view.getUint32(0, true);
+                totalSamples = Math.floor((e.target.result.byteLength - 32) / 4);
+                
+                const iArr = new Float32Array(totalSamples), qArr = new Float32Array(totalSamples);
+                for (let i = 0; i < totalSamples; i++) {
+                    const off = 32 + (i * 4);
+                    iArr[i] = view.getInt16(off, true) / 32768.0;
+                    qArr[i] = view.getInt16(off + 2, true) / 32768.0;
+                }
+                fileData = { i: iArr, q: qArr };
+                document.getElementById('srDisp').textContent = (sampleRate/1e6).toFixed(2) + ' MHz';
+                document.getElementById('bwDisp').textContent = (sampleRate/1e6).toFixed(2) + ' MHz';
+                document.getElementById('durDisp').textContent = (totalSamples/sampleRate).toFixed(2) + 's';
+                document.getElementById('playBtn').disabled = false;
+                resetPeakHold();
+                initWaterfall();
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Trace Toggle Logic
+        function toggleMax() {
+            showMax = !showMax;
+            const btn = document.getElementById('toggleMax');
+            btn.innerText = `Max Hold: ${showMax ? 'ON' : 'OFF'}`;
+            btn.classList.toggle('bg-red-600', showMax);
+            btn.classList.toggle('bg-slate-700', !showMax);
+        }
+
+        function toggleMin() {
+            showMin = !showMin;
+            const btn = document.getElementById('toggleMin');
+            btn.innerText = `Min Hold: ${showMin ? 'ON' : 'OFF'}`;
+            btn.classList.toggle('bg-emerald-600', showMin);
+            btn.classList.toggle('bg-slate-700', !showMin);
+        }
+
+        function resetPeakHold() {
+            maxHold = null;
+            minHold = null;
+        }
+
+        function performFFT(re, im) {
+            const n = re.length;
+            for (let i = 1, j = 0; i < n; i++) {
+                let bit = n >> 1;
+                for (; j & bit; bit >>= 1) j ^= bit;
+                j ^= bit;
+                if (i < j) { [re[i], re[j]] = [re[j], re[i]]; [im[i], im[j]] = [im[j], im[i]]; }
+            }
+            for (let len = 2; len <= n; len <<= 1) {
+                let ang = 2 * Math.PI / len * -1;
+                let wlen_re = Math.cos(ang), wlen_im = Math.sin(ang);
+                for (let i = 0; i < n; i += len) {
+                    let w_re = 1, w_im = 0;
+                    for (let j = 0; j < len / 2; j++) {
+                        let u_re = re[i+j], u_im = im[i+j];
+                        let v_re = re[i+j+len/2] * w_re - im[i+j+len/2] * w_im;
+                        let v_im = re[i+j+len/2] * w_im + im[i+j+len/2] * w_re;
+                        re[i+j] = u_re + v_re; im[i+j] = u_im + v_im;
+                        re[i+j+len/2] = u_re - v_re; im[i+j+len/2] = u_im - v_im;
+                        let tmp = w_re * wlen_re - w_im * wlen_im;
+                        w_im = w_re * wlen_im + w_im * wlen_re; w_re = tmp;
+                    }
+                }
+            }
+        }
+
+        function computeFFT(start) {
+            const size = parseInt(document.getElementById('fftSize').value);
+            const re = new Float32Array(size), im = new Float32Array(size);
+            for (let i = 0; i < size; i++) {
+                if (start + i < totalSamples) {
+                    re[i] = fileData.i[start + i] * (0.54 - 0.46 * Math.cos(2 * Math.PI * i / (size - 1)));
+                    im[i] = fileData.q[start + i];
+                }
+            }
+            performFFT(re, im);
+            const mag = new Float32Array(size), freq = new Float32Array(size);
+            const isMHz = sampleRate >= 1000000;
+            for (let i = 0; i < size; i++) {
+                const sIdx = (i + size / 2) % size;
+                mag[i] = 20 * Math.log10(Math.sqrt(re[sIdx]**2 + im[sIdx]**2) / size + 1e-10);
+                freq[i] = ((i - size / 2) * (sampleRate / size)) / (isMHz ? 1e6 : 1000);
+            }
+            return { x: freq, y: mag, unit: isMHz ? "MHz" : "kHz" };
+        }
+
+        function updatePlots(data) {
+            // Show center frequency in spectrum plot title if available
+            let centerFreqStr = '';
+            if (typeof data.center_freq !== 'undefined') {
+                if (data.unit === 'MHz') {
+                    centerFreqStr = ` (Center: ${(data.center_freq/1e6).toFixed(6)} MHz)`;
+                } else {
+                    centerFreqStr = ` (Center: ${(data.center_freq/1e3).toFixed(3)} kHz)`;
+                }
+            }
+            const traces = [];
+            if (showMax) traces.push({ x: Array.from(data.x), y: Array.from(maxHold), name: 'Max', line: {color: 'rgba(239, 68, 68, 0.6)', width: 1}});
+            if (showMin) traces.push({ x: Array.from(data.x), y: Array.from(minHold), name: 'Min', line: {color: 'rgba(16, 185, 129, 0.6)', width: 1}});
+            traces.push({ x: Array.from(data.x), y: Array.from(data.y), name: 'Live', line: {color: '#3b82f6', width: 1.5}});
+
+            // --- ZOOM PRESERVATION LOGIC ---
+            const gd = document.getElementById('spectrumPlot');
+            let xRange = [data.x[0], data.x[data.x.length - 1]]; // Default full span
+            let yRange = [-110, 5]; // Default vertical span
+
+            // If the user has already zoomed, grab their current view
+            if (gd && gd.layout && gd.layout.xaxis && gd.layout.xaxis.range) {
+                xRange = gd.layout.xaxis.range;
+            }
+            if (gd && gd.layout && gd.layout.yaxis && gd.layout.yaxis.range) {
+                yRange = gd.layout.yaxis.range;
+            }
+
+            const layout = {
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0.3)',
+                font: {color: '#94a3b8'},
+                xaxis: {
+                    title: `Freq (${data.unit})` + centerFreqStr,
+                    gridcolor: '#334155',
+                    range: xRange, // Keep the zoom level
+                    autorange: gd && gd.layout && gd.layout.xaxis.autorange // Allow reset on double-click
+                },
+                yaxis: {
+                    range: yRange, // Keep the zoom level
+                    title: 'dB', 
+                    gridcolor: '#334155'
+                },
+                margin: {t:20, b:40, l:50, r:10},
+                dragmode: 'zoom',
+                showlegend: (showMax || showMin),
+                uirevision: 'true' // IMPORTANT: Tells Plotly not to reset UI state on data updates
+            };
+
+            Plotly.react('spectrumPlot', traces, layout, {responsive: true, scrollZoom: true, displayModeBar: true});
+            updateWaterfall(data.y);
+        }
+
+        function initWaterfall() {
+            const c = document.getElementById('waterfallCanvas');
+            c.width = c.offsetWidth; c.height = c.offsetHeight;
+            waterfallCtx = c.getContext('2d');
+            waterfallRows = [];
+        }
+
+        // --- Waterfall: accumulate history of backend IQ spectra ---
+        function updateWaterfall(mag) {
+            // Instead of replacing, append new spectrum row to the rolling buffer
+            waterfallRows.push(mag.slice()); // store a copy
+            if (waterfallRows.length > maxHistory) waterfallRows.shift();
+            const w = waterfallCtx.canvas.width, h = waterfallCtx.canvas.height;
+            const img = waterfallCtx.createImageData(w, h);
+            for (let r = 0; r < waterfallRows.length; r++) {
+                const rowData = waterfallRows[r];
+                const yOff = Math.floor(r * (h/maxHistory));
+                for (let x = 0; x < w; x++) {
+                    const n = Math.max(0, Math.min(1, (rowData[Math.floor((x/w)*rowData.length)] + 100) / 80));
+                    const idx = (yOff * w + x) * 4;
+                    img.data[idx] = n < 0.5 ? 0 : (n-0.5)*510;
+                    img.data[idx+1] = n < 0.5 ? n*510 : 255;
+                    img.data[idx+2] = n < 0.5 ? 255 : 255 - (n-0.5)*510;
+                    img.data[idx+3] = 255;
+                }
+            }
+            waterfallCtx.putImageData(img, 0, 0);
+        }
+
+        // --- Do NOT reset waterfall or spectrum on each backend fetch ---
+        async function fetchAndPlotBackendIQ() {
+            try {
+                const resp = await fetch('/preview_signal');
+                if (!resp.ok) return;
+                const data = await resp.json();
+                if (data.status === 'ok' && data.i && data.q && data.i.length > 0) {
+                    fileData = { i: new Float32Array(data.i), q: new Float32Array(data.q) };
+                    sampleRate = data.sample_rate;
+                    totalSamples = data.num_samples;
+                    currentSample = 0;
+                    document.getElementById('srDisp').textContent = (sampleRate/1e6).toFixed(2) + ' MHz';
+                    document.getElementById('bwDisp').textContent = (sampleRate/1e6).toFixed(2) + ' MHz';
+                    document.getElementById('durDisp').textContent = (totalSamples/sampleRate).toFixed(2) + 's';
+                    // Compute spectrum for this fetch and update both spectrum and waterfall via updatePlots
+                    let spectrum = computeFFT(0);
+                    spectrum.center_freq = data.center_freq || 0;
+                    updatePlots(spectrum);
+                }
+            } catch (err) { /* ignore */ }
+        }
+        function previewBackendSignal() {
+            fetchAndPlotBackendIQ(); // Always fetch and plot immediately
+        }
+        // --- Auto-start backend preview on page load ---
+        window.addEventListener('DOMContentLoaded', () => {
+            // Start interval for continuous updates
+            let rate = parseInt(document.getElementById('backendUpdateRate').value) || 200;
+            backendStreamInterval = setInterval(fetchAndPlotBackendIQ, rate);
+        });
+    </script>
+</body>
+</html>

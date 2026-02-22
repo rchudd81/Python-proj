@@ -485,7 +485,7 @@
                 </div>
                 
                 <div class="polarity-note" id="polarityNote">
-                    <strong>LNB Setup Instructions:</strong><br>
+                    <strong>LNB Setup Instructions (-90° to +90° range):</strong><br>
                     • First, rotate the entire LNB by the skew angle shown<br>
                     • Then align probes to the angles shown for each polarity<br>
                     • Angles are normalized to -90° to +90° for easy reading
@@ -503,7 +503,381 @@
     </div>
 
     <script>
-        // ...existing code...
+        // Initialize with default values and calculate on load
+        window.onload = function() {
+            calculateSkew();
+            checkIfOffline();
+            checkLocationPermission();
+        };
+        
+        function checkIfOffline() {
+            // Check if running as a saved/local file
+            if (window.location.protocol === 'file:') {
+                document.getElementById('downloadHint').innerHTML = '✅ Saved! You can use this app offline anytime.';
+                document.getElementById('saveBtn').disabled = true;
+                document.getElementById('saveBtn').style.opacity = '0.5';
+            }
+        }
+        
+        function checkLocationPermission() {
+            // Check if browser supports geolocation
+            if (!navigator.geolocation) {
+                document.getElementById('locationBtn').disabled = true;
+                document.getElementById('locationBtn').innerHTML = '📍 Geolocation not supported';
+            }
+        }
+        
+        function saveForOffline() {
+            // Create a downloadable version
+            const htmlContent = document.documentElement.outerHTML;
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'satellite_skew_calculator.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            // Update hint
+            document.getElementById('downloadHint').innerHTML = '✅ File downloaded! Find it in your Downloads folder.';
+            setTimeout(() => {
+                document.getElementById('downloadHint').innerHTML = '💡 Tip: Save this page to your phone for offline use!';
+            }, 3000);
+        }
+        
+        function getLocation() {
+            const locationBtn = document.getElementById('locationBtn');
+            const locationStatus = document.getElementById('locationStatus');
+            
+            // Disable button while getting location
+            locationBtn.disabled = true;
+            locationBtn.innerHTML = '<span>⌛</span> Getting location...';
+            locationStatus.style.display = 'block';
+            locationStatus.innerHTML = '📍 Requesting your location...';
+            
+            // Options for better accuracy on mobile
+            const options = {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
+            };
+            
+            navigator.geolocation.getCurrentPosition(
+                // Success callback
+                function(position) {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+                    const accuracy = position.coords.accuracy;
+                    
+                    // Update input fields
+                    document.getElementById('lat').value = lat.toFixed(6);
+                    document.getElementById('lon').value = lon.toFixed(6);
+                    
+                    // Show success message
+                    locationStatus.innerHTML = `✅ Location acquired! Accuracy: ±${Math.round(accuracy)}m`;
+                    locationStatus.style.background = '#E8F5E8';
+                    locationStatus.style.color = '#2E7D32';
+                    
+                    // Re-enable button
+                    locationBtn.disabled = false;
+                    locationBtn.innerHTML = '<span>📍</span> Use My Current Location';
+                    
+                    // Auto-calculate with new location
+                    calculateSkew();
+                    
+                    // Highlight the fields that were updated
+                    document.getElementById('lat').style.borderColor = '#4CAF50';
+                    document.getElementById('lon').style.borderColor = '#4CAF50';
+                    
+                    // Reset border color after 2 seconds
+                    setTimeout(() => {
+                        document.getElementById('lat').style.borderColor = '#e0e0e0';
+                        document.getElementById('lon').style.borderColor = '#e0e0e0';
+                    }, 2000);
+                },
+                // Error callback
+                function(error) {
+                    let errorMessage = '';
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            errorMessage = '❌ Location permission denied. Please enable location services and try again.';
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            errorMessage = '❌ Location information unavailable. Please check your GPS signal.';
+                            break;
+                        case error.TIMEOUT:
+                            errorMessage = '❌ Location request timed out. Please try again.';
+                            break;
+                        default:
+                            errorMessage = '❌ An unknown error occurred. Please try again.';
+                    }
+                    
+                    locationStatus.innerHTML = errorMessage;
+                    locationStatus.style.background = '#FFEBEE';
+                    locationStatus.style.color = '#C62828';
+                    
+                    // Re-enable button
+                    locationBtn.disabled = false;
+                    locationBtn.innerHTML = '<span>📍</span> Use My Current Location';
+                },
+                options
+            );
+        }
+        
+        function normalizeAngle(angle) {
+            // Normalize any angle to -90 to +90 range
+            // First, bring it to 0-360 range
+            angle = angle % 360;
+            if (angle < 0) angle += 360;
+            
+            // Convert to -180 to 180 range
+            if (angle > 180) angle -= 360;
+            
+            // Now convert to -90 to 90 by finding the equivalent angle
+            // For angles > 90, reflect around 90/270
+            if (angle > 90) {
+                angle = 180 - angle;
+            } else if (angle < -90) {
+                angle = -180 - angle;
+            }
+            
+            return angle;
+        }
+        
+        function calculateSkew() {
+            const lat = parseFloat(document.getElementById('lat').value);
+            const lon = parseFloat(document.getElementById('lon').value);
+            const satLon = parseFloat(document.getElementById('sat').value);
+            
+            // Validate inputs
+            if (isNaN(lat) || isNaN(lon) || isNaN(satLon)) {
+                alert('Please enter valid numbers for all fields');
+                return;
+            }
+            
+            if (lat < -90 || lat > 90) {
+                alert('Latitude must be between -90 and 90');
+                return;
+            }
+            
+            if (lon < -180 || lon > 180 || satLon < -180 || satLon > 180) {
+                alert('Longitude must be between -180 and 180');
+                return;
+            }
+            
+            // Convert to radians
+            const latRad = lat * Math.PI / 180;
+            const deltaLon = (satLon - lon) * Math.PI / 180;
+            
+            // Constants
+            const R = 6378.137; // Earth radius (km)
+            const R_geo = 42164.0; // Geostationary orbit radius (km)
+            
+            // Calculate elevation
+            const cosTheta = Math.cos(latRad) * Math.cos(deltaLon);
+            const elevationRad = Math.atan(
+                (cosTheta - R/R_geo) / 
+                Math.sqrt(1 - cosTheta*cosTheta)
+            );
+            let elevationDeg = elevationRad * 180 / Math.PI;
+            
+            // Calculate azimuth
+            let azimuthRad;
+            if (Math.abs(Math.sin(deltaLon)) < 0.0001) {
+                azimuthRad = 0;
+            } else {
+                azimuthRad = Math.atan2(
+                    Math.tan(deltaLon),
+                    Math.sin(latRad)
+                );
+            }
+            
+            let azimuthDeg = azimuthRad * 180 / Math.PI;
+            
+            // Adjust azimuth based on satellite position relative to observer
+            if (satLon < lon) {
+                // Satellite West
+                azimuthDeg = 180 - azimuthDeg;
+            } else {
+                // Satellite East
+                azimuthDeg = 180 + azimuthDeg;
+            }
+            
+            // Normalize azimuth to 0-360
+            azimuthDeg = (azimuthDeg + 360) % 360;
+            
+            // Calculate polarization skew
+            let skewRad = Math.atan2(
+                Math.sin(deltaLon),
+                Math.tan(latRad)
+            );
+            let skewDeg = skewRad * 180 / Math.PI;
+            
+            // Adjust skew sign based on hemisphere
+            if (lat < 0) { // Southern Hemisphere
+                skewDeg = -skewDeg;
+            }
+            
+            // Calculate H/V polarization angles
+            // Vertical: reference at 0° + skew
+            // Horizontal: reference at 90° + skew
+            let rawVertical = skewDeg;
+            let rawHorizontal = 90 + skewDeg;
+            
+            // Normalize both to -90 to +90
+            let verticalAngle = normalizeAngle(rawVertical);
+            let horizontalAngle = normalizeAngle(rawHorizontal);
+            
+            // Verify that H and V are perpendicular (90° apart)
+            // If not, adjust horizontal to maintain perpendicular relationship
+            let angleDiff = Math.abs(horizontalAngle - verticalAngle);
+            if (angleDiff > 100) {
+                // If difference is large, adjust by subtracting 180
+                horizontalAngle = normalizeAngle(horizontalAngle - 180);
+            } else if (angleDiff < 80) {
+                // If too close, adjust by adding/subtracting 90
+                if (verticalAngle >= 0) {
+                    horizontalAngle = verticalAngle - 90;
+                } else {
+                    horizontalAngle = verticalAngle + 90;
+                }
+                horizontalAngle = normalizeAngle(horizontalAngle);
+            }
+            
+            // Display results
+            document.getElementById('result').style.display = 'block';
+            
+            // Update azimuth and elevation
+            document.getElementById('azimuth').innerHTML = azimuthDeg.toFixed(1) + '<span class="result-unit">°</span>';
+            document.getElementById('elevation').innerHTML = elevationDeg.toFixed(1) + '<span class="result-unit">°</span>';
+            document.getElementById('direction').textContent = getCompassDirection(azimuthDeg);
+            
+            // Update LNB skew
+            document.getElementById('skew').innerHTML = skewDeg.toFixed(1) + '<span class="result-unit">°</span>';
+            const skewNote = document.getElementById('skewNote');
+            if (skewDeg > 0.1) {
+                skewNote.innerHTML = '↻ Clockwise rotation';
+            } else if (skewDeg < -0.1) {
+                skewNote.innerHTML = '↺ Counter-clockwise rotation';
+            } else {
+                skewNote.innerHTML = 'No rotation needed';
+            }
+            
+            // Update polarization angles
+            document.getElementById('verticalAngle').innerHTML = verticalAngle.toFixed(1) + '°';
+            document.getElementById('horizontalAngle').innerHTML = horizontalAngle.toFixed(1) + '°';
+            
+            // Update descriptions
+            document.getElementById('verticalDesc').innerHTML = getPolarizationDescription(verticalAngle);
+            document.getElementById('horizontalDesc').innerHTML = getPolarizationDescription(horizontalAngle);
+            
+            // Update angle notes
+            document.getElementById('verticalNote').innerHTML = getAngleNote(verticalAngle, 'V');
+            document.getElementById('horizontalNote').innerHTML = getAngleNote(horizontalAngle, 'H');
+            
+            // Update instructions
+            const arrow = document.getElementById('arrow');
+            const instructionText = document.getElementById('instructionText');
+            const instructionDetail = document.getElementById('instructionDetail');
+            
+            if (skewDeg > 0.1) {
+                arrow.innerHTML = '↻';
+                instructionText.textContent = `Rotate LNB ${skewDeg.toFixed(1)}° CLOCKWISE`;
+                instructionDetail.textContent = 'Then use normalized H/V angles below';
+            } else if (skewDeg < -0.1) {
+                arrow.innerHTML = '↺';
+                instructionText.textContent = `Rotate LNB ${Math.abs(skewDeg).toFixed(1)}° COUNTER-CLOCKWISE`;
+                instructionDetail.textContent = 'Then use normalized H/V angles below';
+            } else {
+                arrow.innerHTML = '⬆️';
+                instructionText.textContent = 'No skew rotation needed';
+                instructionDetail.textContent = 'Use normalized H/V angles below';
+            }
+            
+            // Update detailed instructions
+            const polarityNote = document.getElementById('polarityNote');
+            polarityNote.innerHTML = `
+                <strong>LNB Setup Instructions (-90° to +90° range):</strong><br>
+                • <strong>Step 1:</strong> Rotate entire LNB by <strong>${skewDeg.toFixed(1)}°</strong> (skew)<br>
+                • <strong>Step 2:</strong> For V transponders: align vertical probe to <strong>${verticalAngle.toFixed(1)}°</strong><br>
+                • <strong>Step 3:</strong> For H transponders: align horizontal probe to <strong>${horizontalAngle.toFixed(1)}°</strong><br>
+                • <strong>Note:</strong> V and H are always 90° apart (perpendicular)<br>
+                • <strong>Positive angle</strong> = clockwise from reference<br>
+                • <strong>Negative angle</strong> = counter-clockwise from reference
+            `;
+            
+            // Update formula note
+            const formulaNote = document.getElementById('formulaNote');
+            formulaNote.innerHTML = `📍 ${Math.abs(lat).toFixed(4)}°${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lon).toFixed(4)}°${lon >= 0 ? 'E' : 'W'} • All angles normalized to -90° to +90°`;
+        }
+        
+        function getCompassDirection(azimuth) {
+            const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 
+                              'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+            const idx = Math.floor((azimuth + 11.25) / 22.5) % 16;
+            return directions[idx];
+        }
+        
+        function getPolarizationDescription(angle) {
+            let absAngle = Math.abs(angle);
+            
+            if (absAngle < 5) {
+                return 'Exactly at reference';
+            } else if (absAngle < 15) {
+                return 'Slightly tilted';
+            } else if (absAngle < 30) {
+                return 'Moderately tilted';
+            } else if (absAngle < 45) {
+                return 'Significantly tilted';
+            } else {
+                return 'Heavily tilted';
+            }
+        }
+        
+        function getAngleNote(angle, type) {
+            let absAngle = Math.abs(angle);
+            
+            if (type === 'V') {
+                if (Math.abs(angle) < 0.1) return 'Exactly vertical';
+                if (angle > 0) return `${absAngle.toFixed(1)}° clockwise from vertical`;
+                return `${absAngle.toFixed(1)}° counter-clockwise from vertical`;
+            } else {
+                if (Math.abs(angle) < 0.1) return 'Exactly horizontal';
+                if (angle > 0) return `${absAngle.toFixed(1)}° clockwise from horizontal`;
+                return `${absAngle.toFixed(1)}° counter-clockwise from horizontal`;
+            }
+        }
+        
+        // Add input validation
+        document.getElementById('lat').addEventListener('input', function(e) {
+            let val = parseFloat(e.target.value);
+            if (!isNaN(val) && (val < -90 || val > 90)) {
+                e.target.style.borderColor = '#f44336';
+            } else {
+                e.target.style.borderColor = '#e0e0e0';
+            }
+        });
+        
+        document.getElementById('lon').addEventListener('input', function(e) {
+            let val = parseFloat(e.target.value);
+            if (!isNaN(val) && (val < -180 || val > 180)) {
+                e.target.style.borderColor = '#f44336';
+            } else {
+                e.target.style.borderColor = '#e0e0e0';
+            }
+        });
+        
+        document.getElementById('sat').addEventListener('input', function(e) {
+            let val = parseFloat(e.target.value);
+            if (!isNaN(val) && (val < -180 || val > 180)) {
+                e.target.style.borderColor = '#f44336';
+            } else {
+                e.target.style.borderColor = '#e0e0e0';
+            }
+        });
     </script>
 </body>
 </html>

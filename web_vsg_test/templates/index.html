@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>VSG Web Prototype v3</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 24px; }
+        label { display:block; margin-top:8px }
+        input[type="number"], select { width:200px }
+        button { margin-top:12px }
+        .flex-row { display: flex; flex-direction: row; align-items: flex-start; gap: 32px; }
+        .signal-panel { min-width: 350px; }
+        .preview-panel { flex: 1; }
+    </style>
+</head>
+<body>
+    <h2>VSG Web Prototype v3 (CW, Real-Time Spectrum, Plotly)</h2>
+    <b>VSG DLL Loaded:</b> {{vsg_status['dll_loaded']}}<br>
+    <b>Device Opened:</b> {{vsg_status['device_opened']}}<br>
+    {% if vsg_status['error'] %}<span style="color:red;">{{vsg_status['error']}}</span><br>{% endif %}
+    <div class="flex-row">
+      <div class="signal-panel">
+        <form method="post" style="margin-bottom:1em;">
+            <b>Frequency (Hz):</b> <input name="frequency_hz" type="number" step="any" value="{{frequency_hz}}" required>
+            <b>Sample Rate (Hz):</b> <input name="sample_rate" type="number" step="any" value="{{sample_rate}}" required>
+            <button name="update_freq_sr" value="1" type="submit">Update</button>
+        </form>
+        <form method="post" style="margin-bottom:1em;">
+            <b>Spectrum Refresh Rate (s):</b> <input name="refresh_rate" type="number" step="any" min="0.05" value="{{interval}}" required>
+            <button name="set_refresh_rate" value="1" type="submit">Set</button>
+        </form>
+        <form method="post" id="signalForm">
+            Signal Type:
+            <select name="sig_type" id="sig_type" onchange="toggleSignalFields()">
+                <option value="cw">CW</option>
+                <option value="sweeping_cw">Sweeping CW</option>
+                <option value="psk">PSK</option>
+            </select><br>
+            Offset from center (Hz): <input name="freq_offset" type="number" step="any" required> <br>
+            Gain (dBm): <input name="gain_dbm" type="number" step="any" required> <br>
+            <div id="sweeping_cw_fields" style="display:none;">
+                Sweep Bandwidth (Hz): <input name="sweep_bw" type="number" value="1000000" step="any"><br>
+                Sweep Speed (Hz): <input name="sweep_speed" type="number" value="100" step="any"><br>
+                Number of Slots: <input name="num_slots" type="number" value="8" min="2" max="64" step="1"><br>
+            </div>
+            <div id="psk_fields" style="display:none;">
+                PSK Type: <select name="mod_type">
+                    <option value="bpsk">BPSK</option>
+                    <option value="qpsk">QPSK</option>
+                    <option value="8psk">8PSK</option>
+                </select><br>
+                RRC Roll-off: <input name="rolloff" type="number" value="0.35" step="0.05" min="0.2" max="0.35"><br>
+                Symbol Rate (Hz): <input name="symrate" type="number" value="1000000" step="any"><br>
+            </div>
+            <button name="add_signal_btn" value="1" type="submit">Add Signal</button>
+        </form>
+        <script>
+        function toggleSignalFields() {
+            var type = document.getElementById('sig_type').value;
+            document.getElementById('sweeping_cw_fields').style.display = (type === 'sweeping_cw') ? '' : 'none';
+            document.getElementById('psk_fields').style.display = (type === 'psk') ? '' : 'none';
+        }
+        document.addEventListener('DOMContentLoaded', toggleSignalFields);
+        document.getElementById('sig_type').addEventListener('change', toggleSignalFields);
+        </script>
+        <h2>Signal List</h2>
+        <form method="post">
+        <ul>
+        {% for i in range(signals|length) %}
+            {% set sig = signals[i] %}
+            <li>
+                {{i+1}}. {{sig.type|upper}} |
+                Offset: {{sig.freq_offset}} Hz |
+                Gain: {{sig.gain_dbm}} dBm |
+                <b>{{'ENABLED' if sig.get('enabled', True) else 'DISABLED'}}</b>
+                <button name="toggle_{{i}}" value="1" type="submit">Toggle</button>
+                <button name="delete_{{i}}" value="1" type="submit" onclick="return confirm('Delete this signal?');">Delete</button>
+            </li>
+        {% endfor %}
+        </ul>
+        </form>
+        <div style="color:red;">{{msg}}</div>
+        <div style="margin-top:24px;">
+          <button id="openPreviewBtn" type="button" style="padding:8px 16px;font-size:14px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;">View IQ Preview</button>
+          <button id="transmitVsgBtn" type="button" style="padding:8px 16px;font-size:14px;background:#059669;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-left:12px;">Transmit to VSG</button>
+          <span id="transmitStatus" style="margin-left:12px;color:#059669;"></span>
+        </div>
+      </div>
+      <div class="preview-panel">
+        <iframe id="iqPreviewFrame" src="/iq-viewer_v3.html" style="width:100%; min-width:400px; height:600px; border:1px solid #888; border-radius:8px; display:none;"></iframe>
+      </div>
+    </div>
+    <script>
+      // Toggle the IQ preview frame
+      const previewBtn = document.getElementById('openPreviewBtn');
+      const previewFrame = document.getElementById('iqPreviewFrame');
+      let previewVisible = false;
+      function setPreviewVisible(visible) {
+        previewVisible = visible;
+        previewFrame.style.display = visible ? 'block' : 'none';
+        previewBtn.textContent = visible ? 'Hide IQ Preview' : 'View IQ Preview';
+      }
+      previewBtn.onclick = function() {
+        setPreviewVisible(!previewVisible);
+        if (previewVisible && !previewFrame.src) {
+          previewFrame.src = '/iq-viewer_v3.html';
+        }
+      };
+      // Always keep the preview frame open if it was open before form submit
+      if (window.sessionStorage.getItem('iqPreviewVisible') === 'true') {
+        setPreviewVisible(true);
+      }
+      // Save state before form submit
+      document.getElementById('signalForm').onsubmit = function() {
+        window.sessionStorage.setItem('iqPreviewVisible', previewVisible ? 'true' : 'false');
+      };
+      // Transmit to VSG button handler
+      let transmitting = false;
+      const transmitBtn = document.getElementById('transmitVsgBtn');
+      const statusEl = document.getElementById('transmitStatus');
+      transmitBtn.onclick = async function() {
+        if (!transmitting) {
+          statusEl.textContent = 'Transmitting...';
+          try {
+            const resp = await fetch('/transmit_vsg', {method: 'POST'});
+            const result = await resp.json();
+            if(result.status === 'ok') {
+              statusEl.textContent = result.message;
+              statusEl.style.color = '#059669';
+              transmitBtn.textContent = 'Stop Transmission';
+              transmitting = true;
+            } else {
+              statusEl.textContent = result.message || 'Transmit failed';
+              statusEl.style.color = 'red';
+            }
+          } catch(err) {
+            statusEl.textContent = 'Transmit error: ' + err;
+            statusEl.style.color = 'red';
+          }
+        } else {
+          statusEl.textContent = 'Stopping...';
+          try {
+            const resp = await fetch('/abort_vsg', {method: 'POST'});
+            const result = await resp.json();
+            if(result.status === 'ok') {
+              statusEl.textContent = result.message;
+              statusEl.style.color = '#059669';
+              transmitBtn.textContent = 'Transmit to VSG';
+              transmitting = false;
+            } else {
+              statusEl.textContent = result.message || 'Abort failed';
+              statusEl.style.color = 'red';
+            }
+          } catch(err) {
+            statusEl.textContent = 'Abort error: ' + err;
+            statusEl.style.color = 'red';
+          }
+        }
+      };
+    </script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>VSG Web Prototype v4</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 24px; }
+        label { display:block; margin-top:8px }
+        input[type="number"], select { width:200px }
+        button { margin-top:12px }
+        .flex-row { display: flex; flex-direction: row; align-items: flex-start; gap: 32px; }
+        .signal-panel { min-width: 350px; }
+        .preview-panel { flex: 1; }
+    </style>
+</head>
+<body>
+    <h2>VSG Web Prototype v4 (Per-Signal Duration, Separate IQ)</h2>
+    <div class="flex-row">
+      <div class="signal-panel">
+        <form method="post" style="margin-bottom:1em;">
+            <b>Frequency (Hz):</b> <input name="frequency_hz" type="number" step="any" required value="{{ frequency_hz }}">
+            <b>Sample Rate (Hz):</b> <input name="sample_rate" type="number" step="any" required value="{{ sample_rate }}">
+            <b>Duration (s):</b> <input name="duration" type="number" step="any" min="0.001" required value="{{ duration }}">
+            <button name="update_freq_sr" value="1" type="submit">Update</button>
+        </form>
+        <form method="post" id="signalForm">
+            Signal Type:
+            <select name="sig_type" id="sig_type" onchange="toggleSignalFields()">
+                <option value="cw">CW</option>
+                <option value="psk">PSK</option>
+            </select><br>
+            Offset from center (Hz): <input name="freq_offset" type="number" step="any" required> <br>
+            Gain (dBm): <input name="gain_dbm" type="number" step="any" required> <br>
+            <div id="psk_fields" style="display:none;">
+                PSK Type: <select name="mod_type">
+                    <option value="bpsk">BPSK</option>
+                    <option value="qpsk">QPSK</option>
+                    <option value="8psk">8PSK</option>
+                </select><br>
+                RRC Roll-off: <input name="rolloff" type="number" value="0.35" step="0.05" min="0.2" max="0.35"><br>
+                Symbol Rate (Hz): <input name="symrate" type="number" value="1000000" step="any"><br>
+            </div>
+            <button name="add_signal_btn" value="1" type="submit">Add Signal</button>
+        </form>
+        <script>
+        function toggleSignalFields() {
+            var type = document.getElementById('sig_type').value;
+            document.getElementById('psk_fields').style.display = (type === 'psk') ? '' : 'none';
+        }
+        document.addEventListener('DOMContentLoaded', toggleSignalFields);
+        document.getElementById('sig_type').addEventListener('change', toggleSignalFields);
+        </script>
+        <h2>Signal List</h2>
+        <form method="post">
+        <ul>
+        {% for i in range(signals|length) %}
+            {% set sig = signals[i] %}
+            <li>
+                {{i+1}}. {{sig.type|upper}} |
+                Offset: {{sig.freq_offset}} Hz |
+                Gain: {{sig.gain_dbm}} dBm |
+                Sample Rate: {{sig.sample_rate}} Hz |
+                Duration: {{sig.duration}} s
+                <button name="delete_signal" value="{{i}}" type="submit" onclick="return confirm('Delete this signal?');">Delete</button>
+            </li>
+        {% endfor %}
+        </ul>
+        </form>
+        <div style="color:red;">{{msg}}</div>
+        <div style="margin-top:24px;">
+          <a href="/static/iq-viewer_v4.html" target="_blank"><button type="button" style="padding:8px 16px;font-size:14px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;">Open IQ Viewer v4</button></a>
+        </div>
+      </div>
+    </div>
+</body>
+</html>

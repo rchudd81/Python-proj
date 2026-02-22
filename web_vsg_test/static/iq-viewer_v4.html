@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IQ Viewer v4</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        body { background: #181e2a; color: #e5e7eb; font-family: Arial, sans-serif; margin: 0; padding: 0; }
+        .container { max-width: 1100px; margin: 32px auto; background: #232946; border-radius: 12px; box-shadow: 0 2px 16px #0008; padding: 32px; }
+        h1 { margin-bottom: 24px; }
+        .signal-list { margin-bottom: 24px; }
+        .signal-list ul { list-style: none; padding: 0; }
+        .signal-list li { margin-bottom: 8px; }
+        .controls { margin-bottom: 24px; }
+        .controls label { margin-right: 16px; }
+        #spectrumPlot { height: 400px; background: #11131a; border-radius: 8px; }
+        #waterfallCanvas { width: 100%; height: 240px; background: #000; border-radius: 8px; margin-top: 16px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>IQ Viewer v4</h1>
+    <div class="signal-list">
+        <h3>Signals in Viewer:</h3>
+        <ul id="signalList"></ul>
+        <button id="addSignalBtn">Add Signal from Backend</button>
+        <button id="clearSignalsBtn">Clear All</button>
+    </div>
+    <div class="controls">
+        <label><input type="checkbox" id="loopSignals" checked> Loop signals</label>
+        <label>Resample to <input type="number" id="resampleRate" value="1000000" min="1000" step="1000"> Hz</label>
+        <button id="combineBtn">Combine & Preview</button>
+    </div>
+    <div id="spectrumPlot"></div>
+    <canvas id="waterfallCanvas"></canvas>
+</div>
+<script>
+
+let signals = [];
+let combinedIQ = {i:[], q:[], sample_rate:0};
+let waterfallRows = [], maxHistory = 150, waterfallCtx = null;
+
+function renderSignalList() {
+    const ul = document.getElementById('signalList');
+    ul.innerHTML = '';
+    signals.forEach((sig, idx) => {
+        const li = document.createElement('li');
+        li.innerHTML = `#${idx+1}: <b>${sig.type.toUpperCase()}</b> | SR: ${sig.sample_rate} Hz | Dur: ${sig.duration}s <input type='checkbox' class='sigSelect' data-idx='${idx}' checked> <button onclick="removeSignal(${idx})">Remove</button>`;
+        ul.appendChild(li);
+    });
+}
+
+function removeSignal(idx) {
+    signals.splice(idx, 1);
+    renderSignalList();
+}
+
+document.getElementById('addSignalBtn').onclick = async function() {
+    const resp = await fetch('/get_signal');
+    const sig = await resp.json();
+    if (sig.status !== 'ok') {
+        alert('No signal available from backend.');
+        return;
+    }
+    // Store a copy in the viewer
+    signals.push({
+        type: sig.type,
+        sample_rate: sig.sample_rate,
+        duration: sig.duration,
+        i: sig.i,
+        q: sig.q
+    });
+    renderSignalList();
+};
+
+document.getElementById('clearSignalsBtn').onclick = function() {
+    signals = [];
+    renderSignalList();
+};
+
+function resampleIQ(iArr, qArr, origRate, targetRate) {
+    if (origRate === targetRate) return {i: iArr, q: qArr};
+    const N = iArr.length;
+    const duration = N / origRate;
+    const newN = Math.round(duration * targetRate);
+    const tOrig = Array.from({length: N}, (_, k) => k / origRate);
+    const tNew = Array.from({length: newN}, (_, k) => k / targetRate);
+    // Linear interpolation
+    function interp(arr) {
+        return tNew.map(t => {
+            let idx = t * origRate;
+            let i0 = Math.floor(idx), i1 = Math.min(i0+1, N-1);
+            let frac = idx - i0;
+            return arr[i0]*(1-frac) + arr[i1]*frac;
+        });
+    }
+    return {i: interp(iArr), q: interp(qArr)};
+}
+
+
+function combineAndPreviewSignals() {
+    const selected = Array.from(document.querySelectorAll('.sigSelect:checked')).map(cb => parseInt(cb.dataset.idx));
+    if (selected.length === 0) return;
+    const resampleRate = parseInt(document.getElementById('resampleRate').value);
+    const loop = document.getElementById('loopSignals').checked;
+    let iCombined = [], qCombined = [];
+    for (let idx of selected) {
+        const sig = signals[idx];
+        let {i, q, sample_rate, duration} = sig;
+        let resampled = resampleIQ(i, q, sample_rate, resampleRate);
+        if (loop) {
+            // Loop to at least 1 second for preview
+            const minLen = resampleRate;
+            while (resampled.i.length < minLen) {
+                resampled.i = resampled.i.concat(resampled.i);
+                resampled.q = resampled.q.concat(resampled.q);
+            }
+            resampled.i = resampled.i.slice(0, minLen);
+            resampled.q = resampled.q.slice(0, minLen);
+        }
+        iCombined = iCombined.length ? iCombined.map((v,k)=>v+resampled.i[k]) : resampled.i.slice();
+        qCombined = qCombined.length ? qCombined.map((v,k)=>v+resampled.q[k]) : resampled.q.slice();
+    }
+    // Normalize
+    let max = Math.max(...iCombined.map(Math.abs), ...qCombined.map(Math.abs), 1e-12);
+    iCombined = iCombined.map(x=>x/max);
+    qCombined = qCombined.map(x=>x/max);
+    combinedIQ = {i: iCombined, q: qCombined, sample_rate: resampleRate};
+    plotSpectrum();
+    updateWaterfall();
+}
+
+document.getElementById('combineBtn').onclick = combineAndPreviewSignals;
+
+document.addEventListener('DOMContentLoaded', () => {
+    renderSignalList();
+    const c = document.getElementById('waterfallCanvas');
+    c.width = c.offsetWidth; c.height = c.offsetHeight;
+    waterfallCtx = c.getContext('2d');
+});
+
+function plotSpectrum() {
+    const N = 2048;
+    if (!combinedIQ.i || combinedIQ.i.length < N) {
+        alert('Not enough IQ samples to plot spectrum. Try increasing signal duration or sample rate.');
+        return;
+    }
+    const re = new Float32Array(N), im = new Float32Array(N);
+    const iArr = combinedIQ.i, qArr = combinedIQ.q;
+    for (let k = 0; k < N; k++) {
+        let idx = Math.floor(k * iArr.length / N);
+        re[k] = iArr[idx];
+        im[k] = qArr[idx];
+    }
+    // FFT
+    function fft(re,im){
+        const n = re.length, bits = Math.log2(n);
+        for(let i=0;i<n;i++){
+            let j=0; for(let b=0;b<bits;b++) j=(j<<1)|((i>>b)&1);
+            if(j>i){ let tr=re[i], ti=im[i]; re[i]=re[j]; im[i]=im[j]; re[j]=tr; im[j]=ti; }
+        }
+        for(let len=2; len<=n; len<<=1){
+            const ang = -2*Math.PI/len;
+            const wlen_r = Math.cos(ang), wlen_i = Math.sin(ang);
+            for(let i=0;i<n;i+=len){
+                let wr=1, wi=0;
+                for(let j=0;j<len/2;j++){
+                    const u_r = re[i+j], u_i = im[i+j];
+                    const v_r = re[i+j+len/2]*wr - im[i+j+len/2]*wi;
+                    const v_i = re[i+j+len/2]*wi + im[i+j+len/2]*wr;
+                    re[i+j] = u_r + v_r; im[i+j] = u_i + v_i;
+                    re[i+j+len/2] = u_r - v_r; im[i+j+len/2] = u_i - v_i;
+                    const nxt_r = wr*wlen_r - wi*wlen_i;
+                    const nxt_i = wr*wlen_i + wi*wlen_r;
+                    wr = nxt_r; wi = nxt_i;
+                }
+            }
+        }
+    }
+    fft(re,im);
+    // Magnitude and fftshift
+    const mag = new Float32Array(N);
+    for(let k=0;k<N;k++) mag[k] = Math.sqrt(re[k]*re[k] + im[k]*im[k]);
+    const half = N/2;
+    const out = new Float32Array(N);
+    for(let k=0;k<half;k++){ out[k]=mag[k+half]; out[k+half]=mag[k]; }
+    const freqs = new Float32Array(N);
+    for(let k=0;k<N;k++) freqs[k] = (k - N/2) * (combinedIQ.sample_rate / N) / 1e6;
+    Plotly.newPlot('spectrumPlot', [{x: Array.from(freqs), y: Array.from(out), name:'Spectrum', line:{color:'#3b82f6'}}], {
+        xaxis: {title: 'Frequency (MHz)'},
+        yaxis: {title: 'Magnitude (a.u.)'},
+        margin: {t:20, b:40, l:50, r:10},
+        paper_bgcolor: '#181e2a', plot_bgcolor: '#232946', font: {color:'#e5e7eb'}
+    }, {responsive:true, displayModeBar:true});
+}
+
+function updateWaterfall() {
+    const N = 2048;
+    if (!combinedIQ.i || combinedIQ.i.length < N) {
+        alert('Not enough IQ samples to plot waterfall. Try increasing signal duration or sample rate.');
+        return;
+    }
+    const re = new Float32Array(N), im = new Float32Array(N);
+    const iArr = combinedIQ.i, qArr = combinedIQ.q;
+    for (let k = 0; k < N; k++) {
+        let idx = Math.floor(k * iArr.length / N);
+        re[k] = iArr[idx];
+        im[k] = qArr[idx];
+    }
+    // FFT
+    function fft(re,im){
+        const n = re.length, bits = Math.log2(n);
+        for(let i=0;i<n;i++){
+            let j=0; for(let b=0;b<bits;b++) j=(j<<1)|((i>>b)&1);
+            if(j>i){ let tr=re[i], ti=im[i]; re[i]=re[j]; im[i]=im[j]; re[j]=tr; im[j]=ti; }
+        }
+        for(let len=2; len<=n; len<<=1){
+            const ang = -2*Math.PI/len;
+            const wlen_r = Math.cos(ang), wlen_i = Math.sin(ang);
+            for(let i=0;i<n;i+=len){
+                let wr=1, wi=0;
+                for(let j=0;j<len/2;j++){
+                    const u_r = re[i+j], u_i = im[i+j];
+                    const v_r = re[i+j+len/2]*wr - im[i+j+len/2]*wi;
+                    const v_i = re[i+j+len/2]*wi + im[i+j+len/2]*wr;
+                    re[i+j] = u_r + v_r; im[i+j] = u_i + v_i;
+                    re[i+j+len/2] = u_r - v_r; im[i+j+len/2] = u_i - v_i;
+                    const nxt_r = wr*wlen_r - wi*wlen_i;
+                    const nxt_i = wr*wlen_i + wi*wlen_r;
+                    wr = nxt_r; wi = nxt_i;
+                }
+            }
+        }
+    }
+    fft(re,im);
+    // Magnitude and fftshift
+    const mag = new Float32Array(N);
+    for(let k=0;k<N;k++) mag[k] = Math.sqrt(re[k]*re[k] + im[k]*im[k]);
+    const half = N/2;
+    const out = new Float32Array(N);
+    for(let k=0;k<half;k++){ out[k]=mag[k+half]; out[k+half]=mag[k]; }
+    waterfallRows.push(Array.from(out));
+    if (waterfallRows.length > maxHistory) waterfallRows.shift();
+    const c = document.getElementById('waterfallCanvas');
+    const w = c.width, h = c.height;
+    const img = waterfallCtx.createImageData(w, h);
+    for (let r = 0; r < waterfallRows.length; r++) {
+        const rowData = waterfallRows[r];
+        const yOff = Math.floor(r * (h/maxHistory));
+        for (let x = 0; x < w; x++) {
+            const n = Math.max(0, Math.min(1, (rowData[Math.floor((x/w)*rowData.length)] + 1e-6) / 2));
+            const idx = (yOff * w + x) * 4;
+            img.data[idx] = n < 0.5 ? 0 : (n-0.5)*510;
+            img.data[idx+1] = n < 0.5 ? n*510 : 255;
+            img.data[idx+2] = n < 0.5 ? 255 : 255 - (n-0.5)*510;
+            img.data[idx+3] = 255;
+        }
+    }
+    waterfallCtx.putImageData(img, 0, 0);
+}
+</script>
+</body>
+</html>
