@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Satellite RF Frequency Calculator</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .header p {
+            margin: 10px 0 0;
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        
+        .content {
+            padding: 25px;
+        }
+        
+        .section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .section-title {
+            margin: 0 0 15px 0;
+            color: #495057;
+            font-size: 18px;
+            font-weight: 600;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 8px;
+        }
+        
+        .input-group {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .input-group label {
+            width: 180px;
+            color: #495057;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        .input-group input, .input-group select {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px 12px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        .input-group input:focus, .input-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+        }
+        
+        .input-group input:hover, .input-group select:hover {
+            border-color: #764ba2;
+        }
+        
+        .input-hint {
+            width: 100%;
+            margin-left: 180px;
+            font-size: 12px;
+            color: #6c757d;
+            margin-top: 4px;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin: 20px 0;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102,126,234,0.4);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        .results {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .results h3 {
+            margin: 0 0 15px 0;
+            color: #495057;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .result-item {
+            display: flex;
+            padding: 10px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .result-item:last-child {
+            border-bottom: none;
+        }
+        
+        .result-label {
+            width: 160px;
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .result-value {
+            flex: 1;
+            color: #667eea;
+            font-weight: 500;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .verification {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e8f4fd;
+            border-radius: 8px;
+            border-left: 4px solid #2196F3;
+        }
+        
+        .verification h4 {
+            margin: 0 0 10px 0;
+            color: #0c5460;
+            font-size: 16px;
+        }
+        
+        .verification-message {
+            font-size: 13px;
+            margin: 5px 0;
+            padding: 5px 10px;
+            border-radius: 4px;
+        }
+        
+        .verification-good {
+            color: #155724;
+            background: #d4edda;
+        }
+        
+        .verification-warning {
+            color: #856404;
+            background: #fff3cd;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .button-group button {
+            flex: 1;
+            margin: 0;
+        }
+        
+        .clear-btn {
+            background: linear-gradient(135deg, #868e96 0%, #495057 100%);
+        }
+        
+        .clear-btn:hover {
+            box-shadow: 0 10px 30px rgba(134,142,150,0.4);
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 15px;
+            background: #f1f3f5;
+            color: #868e96;
+            font-size: 12px;
+        }
+        
+        @media (max-width: 600px) {
+            .input-group label {
+                width: 100%;
+                margin-bottom: 5px;
+            }
+            
+            .input-group input, .input-group select {
+                width: 100%;
+            }
+            
+            .input-hint {
+                margin-left: 0;
+            }
+            
+            .result-item {
+                flex-direction: column;
+            }
+            
+            .result-label {
+                width: 100%;
+                margin-bottom: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📡 Satellite RF Frequency Calculator</h1>
+            <p>Convert between L-band and RF bands (C, X, Ku, Ka) with transponder translation</p>
+        </div>
+        
+        <div class="content">
+            <div class="section">
+                <h2 class="section-title">📥 Input Parameters</h2>
+                
+                <div class="input-group">
+                    <label for="knownValue">Known Value:</label>
+                    <select id="knownValue" onchange="updateInputHint()">
+                        <option value="l_down">L-band Downlink</option>
+                        <option value="rf_down">RF Downlink</option>
+                        <option value="l_up">L-band Uplink</option>
+                        <option value="rf_up">RF Uplink</option>
+                    </select>
+                    <div class="input-hint" id="inputHint">Enter L-band downlink frequency (950-2150 MHz)</div>
+                </div>
+                
+                <div class="input-group">
+                    <label for="frequency">Frequency (MHz):</label>
+                    <input type="number" id="frequency" step="0.001" value="1000" placeholder="Enter frequency">
+                </div>
+                
+                <div class="input-group">
+                    <label for="rfBand">RF Band:</label>
+                    <select id="rfBand">
+                        <option value="C">C Band</option>
+                        <option value="X">X Band</option>
+                        <option value="Ku" selected>Ku Band</option>
+                        <option value="Ka">Ka Band</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2 class="section-title">🔄 Local Oscillator Frequencies</h2>
+                
+                <div class="input-group">
+                    <label for="downLO">Downlink LO (MHz):</label>
+                    <input type="number" id="downLO" step="0.001" value="10000" placeholder="e.g., 10000">
+                </div>
+                
+                <div class="input-group">
+                    <label for="upLO">Uplink LO (MHz):</label>
+                    <input type="number" id="upLO" step="0.001" value="13000" placeholder="e.g., 13000">
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2 class="section-title">🛰️ Transponder Parameters</h2>
+                
+                <div class="input-group">
+                    <label for="ttf">Transponder Translation (MHz):</label>
+                    <input type="number" id="ttf" step="0.001" value="2225" placeholder="e.g., 2225">
+                    <div class="input-hint">Typical values: C-band: 2225, Ku-band: 2225, Ka-band: Various</div>
+                </div>
+            </div>
+            
+            <div class="button-group">
+                <button onclick="calculateFrequencies()">📊 Calculate All Frequencies</button>
+                <button onclick="clearAll()" class="clear-btn">🗑️ Clear All</button>
+            </div>
+            
+            <div class="results" id="results">
+                <h3>📋 Results (MHz)</h3>
+                <div class="result-item">
+                    <span class="result-label">L-band Downlink:</span>
+                    <span class="result-value" id="result_l_down">---</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">RF Downlink LO:</span>
+                    <span class="result-value" id="result_down_lo">---</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">RF Downlink:</span>
+                    <span class="result-value" id="result_rf_down">---</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">Transponder Translation:</span>
+                    <span class="result-value" id="result_ttf">---</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">RF Uplink:</span>
+                    <span class="result-value" id="result_rf_up">---</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">RF Uplink LO:</span>
+                    <span class="result-value" id="result_up_lo">---</span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">L-band Uplink:</span>
+                    <span class="result-value" id="result_l_up">---</span>
+                </div>
+            </div>
+            
+            <div class="verification" id="verification">
+                <h4>✓ Band Verification</h4>
+                <div id="verificationMessages"></div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>Satellite RF Calculator v1.0 | Supports C, X, Ku, Ka bands</p>
+        </div>
+    </div>
+
+    <script>
+        // Band definitions in GHz
+        const BANDS = {
+            'C': {
+                name: 'C Band',
+                downlink: { min: 3.7, max: 4.2 },
+                uplink: { min: 5.925, max: 6.425 }
+            },
+            'X': {
+                name: 'X Band',
+                downlink: { min: 7.25, max: 7.75 },
+                uplink: { min: 7.9, max: 8.4 }
+            },
+            'Ku': {
+                name: 'Ku Band',
+                downlink: { min: 10.7, max: 12.75 },
+                uplink: { min: 13.75, max: 14.5 }
+            },
+            'Ka': {
+                name: 'Ka Band',
+                downlink: { min: 17.3, max: 20.2 },
+                uplink: { min: 27.0, max: 31.0 }
+            }
+        };
+        
+        const L_BAND = { min: 950, max: 2150 }; // MHz
+        
+        function updateInputHint() {
+            const knownValue = document.getElementById('knownValue').value;
+            const hint = document.getElementById('inputHint');
+            
+            switch(knownValue) {
+                case 'l_down':
+                    hint.textContent = 'Enter L-band downlink frequency (950-2150 MHz)';
+                    document.getElementById('frequency').value = '1000';
+                    break;
+                case 'rf_down':
+                    hint.textContent = 'Enter RF downlink frequency (varies by band)';
+                    updateDefaultRFDownlink();
+                    break;
+                case 'l_up':
+                    hint.textContent = 'Enter L-band uplink frequency (950-2150 MHz)';
+                    document.getElementById('frequency').value = '1000';
+                    break;
+                case 'rf_up':
+                    hint.textContent = 'Enter RF uplink frequency (varies by band)';
+                    updateDefaultRFUplink();
+                    break;
+            }
+        }
+        
+        function updateDefaultRFDownlink() {
+            const band = document.getElementById('rfBand').value;
+            const bandData = BANDS[band];
+            const midFreq = (bandData.downlink.min + bandData.downlink.max) / 2;
+            document.getElementById('frequency').value = (midFreq * 1000).toFixed(1);
+        }
+        
+        function updateDefaultRFUplink() {
+            const band = document.getElementById('rfBand').value;
+            const bandData = BANDS[band];
+            const midFreq = (bandData.uplink.min + bandData.uplink.max) / 2;
+            document.getElementById('frequency').value = (midFreq * 1000).toFixed(1);
+        }
+        
+        // Update when band changes
+        document.getElementById('rfBand').addEventListener('change', function() {
+            const knownValue = document.getElementById('knownValue').value;
+            if (knownValue === 'rf_down') {
+                updateDefaultRFDownlink();
+            } else if (knownValue === 'rf_up') {
+                updateDefaultRFUplink();
+            }
+        });
+        
+        function calculateFrequencies() {
+            try {
+                // Get input values
+                const knownValue = document.getElementById('knownValue').value;
+                const freq = parseFloat(document.getElementById('frequency').value);
+                const downLO = parseFloat(document.getElementById('downLO').value);
+                const upLO = parseFloat(document.getElementById('upLO').value);
+                const ttf = parseFloat(document.getElementById('ttf').value);
+                const band = document.getElementById('rfBand').value;
+                
+                // Validate inputs
+                if (isNaN(freq) || isNaN(downLO) || isNaN(upLO) || isNaN(ttf)) {
+                    alert('Please enter valid numeric values for all fields');
+                    return;
+                }
+                
+                // Calculate based on known value
+                let l_down, rf_down, rf_up, l_up;
+                
+                switch(knownValue) {
+                    case 'l_down':
+                        l_down = freq;
+                        rf_down = l_down + downLO;
+                        rf_up = rf_down + ttf;
+                        l_up = rf_up - upLO;
+                        break;
+                        
+                    case 'rf_down':
+                        rf_down = freq;
+                        l_down = rf_down - downLO;
+                        rf_up = rf_down + ttf;
+                        l_up = rf_up - upLO;
+                        break;
+                        
+                    case 'l_up':
+                        l_up = freq;
+                        rf_up = l_up + upLO;
+                        rf_down = rf_up - ttf;
+                        l_down = rf_down - downLO;
+                        break;
+                        
+                    case 'rf_up':
+                        rf_up = freq;
+                        l_up = rf_up - upLO;
+                        rf_down = rf_up - ttf;
+                        l_down = rf_down - downLO;
+                        break;
+                }
+                
+                // Update result displays
+                document.getElementById('result_l_down').textContent = l_down.toFixed(3);
+                document.getElementById('result_down_lo').textContent = downLO.toFixed(3);
+                document.getElementById('result_rf_down').textContent = rf_down.toFixed(3);
+                document.getElementById('result_ttf').textContent = ttf.toFixed(3);
+                document.getElementById('result_rf_up').textContent = rf_up.toFixed(3);
+                document.getElementById('result_up_lo').textContent = upLO.toFixed(3);
+                document.getElementById('result_l_up').textContent = l_up.toFixed(3);
+                
+                // Verify bands
+                verifyBands(band, rf_down, rf_up, l_down, l_up);
+                
+            } catch (error) {
+                alert('Error in calculation: ' + error.message);
+            }
+        }
+        
+        function verifyBands(band, rf_down, rf_up, l_down, l_up) {
+            const bandData = BANDS[band];
+            const verificationDiv = document.getElementById('verificationMessages');
+            let messages = [];
+            
+            // Convert to GHz for RF checks
+            const rf_down_ghz = rf_down / 1000;
+            const rf_up_ghz = rf_up / 1000;
+            
+            // Check RF downlink
+            if (rf_down_ghz >= bandData.downlink.min && rf_down_ghz <= bandData.downlink.max) {
+                messages.push({ 
+                    text: `✓ RF Downlink within ${bandData.name} range (${bandData.downlink.min}-${bandData.downlink.max} GHz)`,
+                    type: 'good'
+                });
+            } else {
+                messages.push({ 
+                    text: `⚠ RF Downlink outside typical ${bandData.name} range (${bandData.downlink.min}-${bandData.downlink.max} GHz)`,
+                    type: 'warning'
+                });
+            }
+            
+            // Check RF uplink
+            if (rf_up_ghz >= bandData.uplink.min && rf_up_ghz <= bandData.uplink.max) {
+                messages.push({ 
+                    text: `✓ RF Uplink within ${bandData.name} range (${bandData.uplink.min}-${bandData.uplink.max} GHz)`,
+                    type: 'good'
+                });
+            } else {
+                messages.push({ 
+                    text: `⚠ RF Uplink outside typical ${bandData.name} range (${bandData.uplink.min}-${bandData.uplink.max} GHz)`,
+                    type: 'warning'
+                });
+            }
+            
+            // Check L-band ranges
+            if (l_down >= L_BAND.min && l_down <= L_BAND.max) {
+                messages.push({ 
+                    text: `✓ L-band Downlink within typical range (${L_BAND.min}-${L_BAND.max} MHz)`,
+                    type: 'good'
+                });
+            } else {
+                messages.push({ 
+                    text: `⚠ L-band Downlink outside typical range (${L_BAND.min}-${L_BAND.max} MHz)`,
+                    type: 'warning'
+                });
+            }
+            
+            if (l_up >= L_BAND.min && l_up <= L_BAND.max) {
+                messages.push({ 
+                    text: `✓ L-band Uplink within typical range (${L_BAND.min}-${L_BAND.max} MHz)`,
+                    type: 'good'
+                });
+            } else {
+                messages.push({ 
+                    text: `⚠ L-band Uplink outside typical range (${L_BAND.min}-${L_BAND.max} MHz)`,
+                    type: 'warning'
+                });
+            }
+            
+            // Display messages
+            verificationDiv.innerHTML = messages.map(msg => 
+                `<div class="verification-message verification-${msg.type}">${msg.text}</div>`
+            ).join('');
+        }
+        
+        function clearAll() {
+            // Reset inputs to defaults
+            document.getElementById('knownValue').value = 'l_down';
+            document.getElementById('frequency').value = '1000';
+            document.getElementById('rfBand').value = 'Ku';
+            document.getElementById('downLO').value = '10000';
+            document.getElementById('upLO').value = '13000';
+            document.getElementById('ttf').value = '2225';
+            
+            // Clear results
+            document.getElementById('result_l_down').textContent = '---';
+            document.getElementById('result_down_lo').textContent = '---';
+            document.getElementById('result_rf_down').textContent = '---';
+            document.getElementById('result_ttf').textContent = '---';
+            document.getElementById('result_rf_up').textContent = '---';
+            document.getElementById('result_up_lo').textContent = '---';
+            document.getElementById('result_l_up').textContent = '---';
+            
+            // Clear verification
+            document.getElementById('verificationMessages').innerHTML = '';
+            
+            // Update hint
+            updateInputHint();
+        }
+        
+        // Initialize on page load
+        window.onload = function() {
+            updateInputHint();
+        };
+    </script>
+</body>
+</html>
