@@ -163,13 +163,18 @@
         const rs = document.getElementById('matrixRs').value;
         const tbody = document.getElementById('matrixResults');
         const mods = [{n:"BPSK",m:1},{n:"QPSK",m:2},{n:"8PSK",m:3},{n:"16APSK",m:4}];
-        const fecs = [0.5, 0.666, 0.75, 0.875];
+        const fecs = [
+            { value: 0.5, label: '1/2' },
+            { value: 0.666, label: '2/3' },
+            { value: 0.75, label: '3/4' },
+            { value: 0.875, label: '7/8' }
+        ];
         
         tbody.innerHTML = "";
         mods.forEach(mod => {
             fecs.forEach(fec => {
-                const rb = rs * mod.m * fec;
-                tbody.innerHTML += `<tr><td>${mod.n}</td><td>${mod.m}</td><td>${fec.toFixed(3)}</td><td class="highlight">${rb.toFixed(2)}</td></tr>`;
+                const rb = rs * mod.m * fec.value;
+                tbody.innerHTML += `<tr><td>${mod.n}</td><td>${mod.m}</td><td>${fec.label}</td><td class="highlight">${rb.toFixed(2)}</td></tr>`;
             });
         });
     }
