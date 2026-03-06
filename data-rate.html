@@ -4,6 +4,45 @@
 </head>
 <body>
     <h1>Data Rate Calculation</h1>
-    <p>This is the previous version of the data-rate.html file.</p>
+    <div>
+        <label for="modulation">Select Modulation:</label>
+        <select id="modulation">
+            <option value="1">BPSK</option>
+            <option value="2">QPSK</option>
+            <option value="3">8PSK</option>
+            <option value="4">16APSK</option>
+        </select>
+        <label for="fec">Select FEC:</label>
+        <select id="fec">
+            <option value="0.5">1/2</option>
+            <option value="0.666">2/3</option>
+            <option value="0.75">3/4</option>
+            <option value="0.875">7/8</option>
+        </select>
+        <label for="symbolRate">Enter Symbol Rate (ksps):</label>
+        <input type="number" id="symbolRate" value="1000">
+
+        <button onClick="calculateDataRate()">Calculate</button>
+        <div>
+            <h3>Results</h3>
+            <p>Calculated Data Rate: <span id="result">0</span> kbps</p>
+        </div>
+    </div>
+
+    <script>
+        function calculateDataRate() {
+            const modulation = document.getElementById("modulation").value;
+            const fec = document.getElementById("fec").value;
+            const symbolRate = document.getElementById("symbolRate").value;
+            
+            if (!symbolRate || symbolRate <= 0) {
+                alert("Please enter a valid symbol rate.");
+                return;
+            }
+
+            const dataRate = modulation * fec * symbolRate;
+            document.getElementById("result").innerText = dataRate.toFixed(2);
+        }
+    </script>
 </body>
 </html>
