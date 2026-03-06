@@ -1,147 +1,33 @@
-<!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Satellite Link Budget & Symbol Rate Tool</title>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background-color: #f0f2f5; color: #333; }
-        .container { max-width: 1000px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
-        .section { margin-bottom: 40px; padding: 20px; border: 1px solid #eef0f2; border-radius: 8px; }
-        h2 { color: #0056b3; margin-top: 0; border-bottom: 2px solid #0056b3; display: inline-block; padding-bottom: 5px; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 20px 0; }
-        .input-box { display: flex; flex-direction: column; }
-        .input-inline { display: flex; align-items: center; gap: 8px; min-height: 46px; }
-        .input-inline input[type="checkbox"] { width: auto; transform: scale(1.15); }
-        .aperture-only { display: none; }
-        .aperture-only.enabled { display: flex; }
-        .interference-only { display: none; }
-        .interference-only.enabled { display: flex; }
-        label { font-weight: bold; margin-bottom: 8px; font-size: 0.85em; color: #666; }
-        input, select { padding: 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 15px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th, td { border: 1px solid #e0e0e0; padding: 12px; text-align: center; }
-        th { background-color: #f8f9fa; color: #555; font-size: 0.8em; }
-        .highlight { font-weight: bold; color: #28a745; }
-        .ebno-card { background: #2c3e50; color: #ecf0f1; padding: 20px; border-radius: 8px; text-align: center; transition: background-color 0.3s ease, color 0.3s ease; }
-        .ebno-card.locked { background: #135b2a; color: #e6ffed; }
-        .ebno-card.unlocked { background: #6b1b1b; color: #ffecec; }
-        .ebno-val { font-size: 2em; display: block; color: inherit; }
-        .status-text { display: block; margin-top: 10px; font-size: 0.85em; letter-spacing: 0.08em; text-transform: uppercase; }
-    </style>
+    <title>Data Rate</title>
 </head>
 <body>
+    <h1>Data Rate Calculation</h1>
+    <div>
+        <label for="modulation">Select Modulation:</label>
+        <select id="modulation">
+            <option value="1">BPSK</option>
+            <option value="2">QPSK</option>
+            <option value="3">8PSK</option>
+            <option value="4">16APSK</option>
+        </select>
+        <label for="fec">Select FEC:</label>
+        <select id="fec">
+            <option value="0.5">1/2</option>
+            <option value="0.666">2/3</option>
+            <option value="0.75">3/4</option>
+            <option value="0.875">7/8</option>
+        </select>
+        <label for="symbolRate">Enter Symbol Rate (ksps):</label>
+        <input type="number" id="symbolRate" value="1000">
 
-<div class="container">
-    
-    <div class="section">
-        <h2>1. Data Rate & MODCOD Matrix</h2>
-        <div class="grid">
-            <div class="input-box">
-                <label>Target Symbol Rate (ksps)</label>
-                <input type="number" id="matrixRs" value="1000" oninput="calculateAll()">
-            </div>
-        </div>
-        <table>
-            <thead>
-                <tr>
-                    <th>Modulation</th>
-                    <th>Spectral Efficiency (m)</th>
-                    <th>FEC Rate</th>
-                    <th>Data Rate (Kbps)</th>
-                </tr>
-            </thead>
-            <tbody id="matrixResults"></tbody>
-        </table>
-    </div>
-
-    <div class="section">
-        <h2>2. Occupied Bandwidth</h2>
-        <div class="grid">
-            <div class="input-box">
-                <label>Occupied BW (kHz)</label>
-                <input type="number" id="inputBw" value="1250" oninput="calculateRolloff()">
-            </div>
-            <div class="input-box">
-                <label>Roll-off Factor (α)</label>
-                <input type="text" id="rolloffResult" readonly style="background:#eee">
-            </div>
+        <button onClick="calculateDataRate()">Calculate</button>
+        <div>
+            <h3>Results</h3>
+            <p>Calculated Data Rate: <span id="result">0</span> kbps</p>
         </div>
     </div>
-
-    <div class="section">
-        <h2>3. Link Budget Analysis</h2>
-        <div class="grid">
-            <div class="input-box">
-                <label>Dish 1 Pre-jam C/N (SNR) in dB</label>
-                <input type="number" id="inputCn" value="10" step="0.1" oninput="calculateEbNo()">
-            </div>
-            <div class="input-box">
-                <label>Select Modulation</label>
-                <select id="selMod" onchange="calculateEbNo()">
-                    <option value="1" data-mod="BPSK">BPSK (m=1)</option>
-                    <option value="2" data-mod="QPSK" selected>QPSK (m=2)</option>
-                    <option value="3" data-mod="8PSK">8PSK (m=3)</option>
-                    <option value="4" data-mod="16APSK">16APSK (m=4)</option>
-                </select>
-            </div>
-            <div class="input-box">
-                <label>Select FEC</label>
-                <select id="selFec" onchange="calculateEbNo()">
-                    <option value="0.5">1/2</option>
-                    <option value="0.666">2/3</option>
-                    <option value="0.75" selected>3/4</option>
-                    <option value="0.875">7/8</option>
-                </select>
-            </div>
-            <div class="input-box">
-                <label>Aperture Mode</label>
-                <div class="input-inline">
-                    <input type="checkbox" id="enableAperture" onchange="toggleApertureMode()">
-                    <span>Enable dish + beam gain adjustment</span>
-                </div>
-            </div>
-            <div class="input-box">
-                <label>Interference Mode</label>
-                <div class="input-inline">
-                    <input type="checkbox" id="enableInterference" onchange="toggleInterferenceMode()">
-                    <span>Apply common on-channel interference to both dishes</span>
-                </div>
-            </div>
-            <div class="input-box interference-only" id="interferenceBox">
-                <label>Common Jammer Noise Rise (dB)</label>
-                <input type="number" id="interferenceDb" value="0" min="0" step="0.1" oninput="calculateEbNo()">
-            </div>
-            <div class="input-box aperture-only" id="dish1RxBox">
-                <label>Dish 1 RX Diameter (m)</label>
-                <input type="number" id="dish1Rx" value="1.2" min="0.1" step="0.1" oninput="calculateEbNo()">
-            </div>
-            <div class="input-box aperture-only" id="dish1GainBox">
-                <label>Dish 1 Beam Gain (dB)</label>
-                <input type="number" id="dish1Gain" value="0" step="0.1" oninput="calculateEbNo()">
-            </div>
-            <div class="input-box aperture-only" id="dish2RxBox">
-                <label>Dish 2 RX Diameter (m)</label>
-                <input type="number" id="dish2Rx" value="1.2" min="0.1" step="0.1" oninput="calculateEbNo()">
-            </div>
-            <div class="input-box aperture-only" id="dish2GainBox">
-                <label>Dish 2 Beam Gain (dB)</label>
-                <input type="number" id="dish2Gain" value="0" step="0.1" oninput="calculateEbNo()">
-            </div>
-        </div>
-        <div class="ebno-card" id="ebnoCard">
-            Dish 1 <span style="color:#bdc3c7">Eb/No</span>
-            <span id="ebnoResult" class="ebno-val">--</span>
-            <small>dB</small>
-            <span id="ebnoCompare" class="status-text">Dish 2 Eb/No: -- dB</span>
-            <span id="cnEffective" class="status-text">Dish 1 Post-jam SNR: -- dB</span>
-            <span id="cnEffective2" class="status-text">Dish 2 Post-jam SNR: -- dB</span>
-            <span id="interferenceStatus" class="status-text">Jammer lock point not calculated</span>
-            <span id="lockStatus" class="status-text">Dish lock status pending</span>
-        </div>
-    </div>
-
-</div>
 
 <script>
     // Empirical Eb/No thresholds (dB) for modem lock derived from DVB-S2/S2X guidance.
@@ -151,7 +37,7 @@
         "8PSK": { "0.5": 5.5, "0.666": 6.5, "0.75": 7.8, "0.875": 8.8 },
         "16APSK": { "0.5": 8.0, "0.666": 8.8, "0.75": 10.5, "0.875": 11.5 }
     };
-    const LOCK_MARGIN_DB = 2; 
+    const LOCK_MARGIN_DB = 2; // Recommended additional margin for stable lock.
 
     function calculateAll() {
         calculateMatrix();
@@ -288,38 +174,9 @@
             return;
         }
 
-        const requiredEbNo = baseThreshold + LOCK_MARGIN_DB;
-        const dish1Lock = ebnoDish1 >= requiredEbNo;
-        const dish2Lock = ebnoDish2 >= requiredEbNo;
-        const allLocked = dish1Lock && dish2Lock;
-
-        card.classList.toggle('locked', allLocked);
-        card.classList.toggle('unlocked', !allLocked);
-
-        const interferenceAtDish2Loss = ebnoDish2NoInterference - requiredEbNo;
-        if (interferenceEl) {
-            if (interferenceAtDish2Loss <= 0) {
-                interferenceEl.innerText = 'Dish 2 already below lock threshold before jammer rise';
-            } else {
-                const dish1CnAtDish2Loss = dish1CnNoInterference - interferenceAtDish2Loss;
-                if (!interferenceEnabled) {
-                    interferenceEl.innerText = `Dish 2 loses lock at jammer rise ${interferenceAtDish2Loss.toFixed(2)} dB (Dish 1 effective C/N then ${dish1CnAtDish2Loss.toFixed(2)} dB)`;
-                } else {
-                    const remainingInterference = Math.max(interferenceAtDish2Loss - interferencePenalty, 0);
-                    interferenceEl.innerText = `Dish 2 loss point: jammer ${interferenceAtDish2Loss.toFixed(2)} dB; Dish 1 effective C/N at loss ${dish1CnAtDish2Loss.toFixed(2)} dB (remaining ${remainingInterference.toFixed(2)} dB)`;
-                }
-            }
+            const dataRate = modulation * fec * symbolRate;
+            document.getElementById("result").innerText = dataRate.toFixed(2);
         }
-
-        if (!apertureEnabled) {
-            statusEl.innerText = dish1Lock ? `Probable lock (>= ${requiredEbNo.toFixed(1)} dB)` : `Need >= ${requiredEbNo.toFixed(1)} dB`;
-            return;
-        }
-
-        statusEl.innerText = `Dish 1: ${dish1Lock ? 'lock probable' : 'no lock'} | Dish 2: ${dish2Lock ? 'lock probable' : 'no lock'} (target >= ${requiredEbNo.toFixed(1)} dB)`;
-    }
-
-    window.onload = calculateAll;
-</script>
+    </script>
 </body>
 </html>
