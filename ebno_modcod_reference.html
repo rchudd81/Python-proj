@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eb/No MODCOD Reference</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background-color: #f0f2f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1100px;
+            margin: auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+        .section {
+            margin-bottom: 28px;
+            padding: 20px;
+            border: 1px solid #eef0f2;
+            border-radius: 8px;
+        }
+        h1 {
+            margin-top: 0;
+            color: #0056b3;
+        }
+        h2 {
+            color: #0056b3;
+            margin-top: 0;
+            border-bottom: 2px solid #0056b3;
+            display: inline-block;
+            padding-bottom: 4px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 14px;
+        }
+        th, td {
+            border: 1px solid #e0e0e0;
+            padding: 10px;
+            text-align: center;
+        }
+        th {
+            background-color: #f8f9fa;
+            color: #555;
+            font-size: 0.85em;
+        }
+        .formula {
+            font-family: Consolas, 'Courier New', monospace;
+            background: #f8f9fb;
+            border: 1px solid #e8edf2;
+            border-radius: 6px;
+            padding: 10px;
+            margin: 8px 0;
+            display: block;
+        }
+        .note {
+            font-size: 0.92em;
+            color: #555;
+        }
+        .ok {
+            color: #135b2a;
+            font-weight: bold;
+        }
+        .warn {
+            color: #6b1b1b;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Eb/No by MODCOD + Link Budget Calculation Reference</h1>
+
+    <div class="section">
+        <h2>1. Assigned Eb/No Thresholds</h2>
+        <p class="note">Values below mirror the exact lookup table used in <strong>data-rate_v2.html</strong>. "Stable Lock Target" includes a +2.0 dB engineering margin.</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Modulation</th>
+                    <th>FEC</th>
+                    <th>Assigned Min Eb/No for Lock (dB)</th>
+                    <th>Stable Lock Target (dB)</th>
+                </tr>
+            </thead>
+            <tbody id="modcodTable"></tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>2. Link Budget Analysis Formulas</h2>
+        <div class="formula">Spectral Efficiency = m × FEC</div>
+        <div class="formula">Eb/No = Effective C/N - 10 × log10(m × FEC)</div>
+        <div class="formula">Dish 2 Pre-jam C/N = Dish 1 Pre-jam C/N + 20 × log10(Dish2_RX / Dish1_RX) + (BeamGain2 - BeamGain1)</div>
+        <div class="formula">Effective C/N (jam impact model) = Pre-jam C/N - JammerRise_dB</div>
+        <div class="formula">Post-jam SNR display = Pre-jam C/N + JammerRise_dB</div>
+        <div class="formula">Required Eb/No for stable lock = Assigned Min Eb/No + 2.0 dB</div>
+        <div class="formula">Lock condition: Eb/No &gt;= Required Eb/No</div>
+        <div class="formula">Dish 2 jammer rise at lock loss = Dish2_EbNo(no-jam) - Required Eb/No</div>
+    </div>
+
+    <div class="section">
+        <h2>3. How the Tool Decides Lock</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Condition</th>
+                    <th>Result</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Dish 1 Eb/No and Dish 2 Eb/No both &gt;= required threshold</td>
+                    <td class="ok">Green tile (lock probable)</td>
+                </tr>
+                <tr>
+                    <td>Either dish falls below required threshold</td>
+                    <td class="warn">Red tile (no lock)</td>
+                </tr>
+            </tbody>
+        </table>
+        <p class="note">This page is a static reference for the currently coded model and thresholds.</p>
+    </div>
+</div>
+
+<script>
+    const lockThresholds = {
+        "BPSK": { "1/2": 1.0, "2/3": 2.5, "3/4": 3.8, "7/8": 4.5 },
+        "QPSK": { "1/2": 1.5, "2/3": 3.5, "3/4": 5.5, "7/8": 6.3 },
+        "8PSK": { "1/2": 5.5, "2/3": 6.5, "3/4": 7.8, "7/8": 8.8 },
+        "16APSK": { "1/2": 8.0, "2/3": 8.8, "3/4": 10.5, "7/8": 11.5 }
+    };
+    const LOCK_MARGIN_DB = 2.0;
+
+    function renderTable() {
+        const tbody = document.getElementById('modcodTable');
+        tbody.innerHTML = '';
+
+        Object.entries(lockThresholds).forEach(([modulation, fecMap]) => {
+            Object.entries(fecMap).forEach(([fec, ebno]) => {
+                const stableTarget = ebno + LOCK_MARGIN_DB;
+                tbody.innerHTML += `<tr><td>${modulation}</td><td>${fec}</td><td>${ebno.toFixed(1)}</td><td>${stableTarget.toFixed(1)}</td></tr>`;
+            });
+        });
+    }
+
+    window.onload = renderTable;
+</script>
+</body>
+</html>

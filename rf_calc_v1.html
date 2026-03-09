@@ -293,6 +293,12 @@
             
             <div class="section">
                 <h2 class="section-title">🔄 Local Oscillator Frequencies</h2>
+
+                <div class="input-group">
+                    <label for="loPreset">LO Preset:</label>
+                    <select id="loPreset" onchange="applySelectedLOPreset()"></select>
+                    <div class="input-hint" id="loPresetHint">Select a common LO pair for the selected band</div>
+                </div>
                 
                 <div class="input-group">
                     <label for="downLO">Downlink LO (MHz):</label>
@@ -389,6 +395,45 @@
         };
         
         const L_BAND = { min: 950, max: 2150 }; // MHz
+
+        const LO_PRESETS = {
+            'C': [
+                { label: 'Airbus Ranger C (Down 5150 / Up 4900)', downLO: 5150, upLO: 4900 },
+                { label: 'Satlite C (Down 5150 / Up 5750)', downLO: 5150, upLO: 5750 },
+                { label: 'Hawkeye C (Down 5150 / Up 4900)', downLO: 5150, upLO: 4900 },
+                { label: 'Tampa Antennas C (Down 5150 / Up 4900)', downLO: 5150, upLO: 4900 },
+                { label: 'C-Band Standard (Down 5150 / Up 4900)', downLO: 5150, upLO: 4900 },
+                { label: 'C-Band Wide IF (Down 5150 / Up 5750)', downLO: 5150, upLO: 5750 }
+            ],
+            'X': [
+                { label: 'Airbus Ranger X (Down 6300 / Up 7000)', downLO: 6300, upLO: 7000 },
+                { label: 'Satlite X (Down 6300 / Up 7000)', downLO: 6300, upLO: 7000 },
+                { label: 'Hawkeye X (Down 6650 / Up 7000)', downLO: 6650, upLO: 7000 },
+                { label: 'Tampa Antennas X (Down 6300 / Up 7000)', downLO: 6300, upLO: 7000 },
+                { label: 'X-Band Standard (Down 6300 / Up 7000)', downLO: 6300, upLO: 7000 },
+                { label: 'X-Band Alt (Down 6650 / Up 7000)', downLO: 6650, upLO: 7000 }
+            ],
+            'Ku': [
+                { label: 'Airbus Ranger Ku Low (Down 10000 / Up 13000)', downLO: 10000, upLO: 13000 },
+                { label: 'Airbus Ranger Ku Mid (Down 10750 / Up 13000)', downLO: 10750, upLO: 13000 },
+                { label: 'Airbus Ranger Ku High (Down 11200 / Up 13000)', downLO: 11200, upLO: 13000 },
+                { label: 'Satlite Ku (Down 10600 / Up 13000)', downLO: 10600, upLO: 13000 },
+                { label: 'Hawkeye III Ku Low (Down 10000 / Up 13000)', downLO: 10000, upLO: 13000 },
+                { label: 'Hawkeye III Ku Mid (Down 10750 / Up 13000)', downLO: 10750, upLO: 13000 },
+                { label: 'Hawkeye III Ku High (Down 11200 / Up 13000)', downLO: 11200, upLO: 13000 },
+                { label: 'Tampa Antennas Ku (Down 10600 / Up 13000)', downLO: 10600, upLO: 13000 },
+                { label: 'Ku-Band Universal Low (Down 10750 / Up 13000)', downLO: 10750, upLO: 13000 },
+                { label: 'Ku-Band Universal High (Down 11200 / Up 13000)', downLO: 11200, upLO: 13000 }
+            ],
+            'Ka': [
+                { label: 'Airbus Ranger Ka (Down 21200 / Up 29250)', downLO: 21200, upLO: 29250 },
+                { label: 'Satlite Ka (Down 21000 / Up 29000)', downLO: 21000, upLO: 29000 },
+                { label: 'Hawkeye Ka (Down 21200 / Up 29250)', downLO: 21200, upLO: 29250 },
+                { label: 'Tampa Antennas Ka (Down 21000 / Up 29000)', downLO: 21000, upLO: 29000 },
+                { label: 'Ka-Band Typical (Down 21200 / Up 29250)', downLO: 21200, upLO: 29250 },
+                { label: 'Ka-Band Alt (Down 21000 / Up 29000)', downLO: 21000, upLO: 29000 }
+            ]
+        };
         
         function updateInputHint() {
             const knownValue = document.getElementById('knownValue').value;
@@ -427,6 +472,44 @@
             const midFreq = (bandData.uplink.min + bandData.uplink.max) / 2;
             document.getElementById('frequency').value = (midFreq * 1000).toFixed(1);
         }
+
+        function updateLOPresetsForBand() {
+            const band = document.getElementById('rfBand').value;
+            const presetSelect = document.getElementById('loPreset');
+            const presetHint = document.getElementById('loPresetHint');
+            const presets = LO_PRESETS[band] || [];
+
+            presetSelect.innerHTML = '';
+            presets.forEach((preset, index) => {
+                const option = document.createElement('option');
+                option.value = String(index);
+                option.textContent = preset.label;
+                presetSelect.appendChild(option);
+            });
+
+            if (presets.length > 0) {
+                presetSelect.value = '0';
+                applySelectedLOPreset();
+                presetHint.textContent = `Common ${BANDS[band].name} LO pairs`;
+            } else {
+                presetHint.textContent = 'No LO presets available for selected band';
+            }
+        }
+
+        function applySelectedLOPreset() {
+            const band = document.getElementById('rfBand').value;
+            const presetSelect = document.getElementById('loPreset');
+            const presets = LO_PRESETS[band] || [];
+            const presetIndex = parseInt(presetSelect.value, 10);
+
+            if (Number.isNaN(presetIndex) || !presets[presetIndex]) {
+                return;
+            }
+
+            const preset = presets[presetIndex];
+            document.getElementById('downLO').value = preset.downLO;
+            document.getElementById('upLO').value = preset.upLO;
+        }
         
         // Update when band changes
         document.getElementById('rfBand').addEventListener('change', function() {
@@ -436,6 +519,7 @@
             } else if (knownValue === 'rf_up') {
                 updateDefaultRFUplink();
             }
+            updateLOPresetsForBand();
         });
         
         function calculateFrequencies() {
@@ -456,18 +540,32 @@
                 
                 // Calculate based on known value
                 let l_down, rf_down, rf_up, l_up;
+
+                const downlinkRfFromL = (lBandDown, downlinkLo, rfBand) => {
+                    if (rfBand === 'C') {
+                        return downlinkLo - lBandDown;
+                    }
+                    return lBandDown + downlinkLo;
+                };
+
+                const downlinkLFromRf = (rfDownlink, downlinkLo, rfBand) => {
+                    if (rfBand === 'C') {
+                        return downlinkLo - rfDownlink;
+                    }
+                    return rfDownlink - downlinkLo;
+                };
                 
                 switch(knownValue) {
                     case 'l_down':
                         l_down = freq;
-                        rf_down = l_down + downLO;
+                        rf_down = downlinkRfFromL(l_down, downLO, band);
                         rf_up = rf_down + ttf;
                         l_up = rf_up - upLO;
                         break;
                         
                     case 'rf_down':
                         rf_down = freq;
-                        l_down = rf_down - downLO;
+                        l_down = downlinkLFromRf(rf_down, downLO, band);
                         rf_up = rf_down + ttf;
                         l_up = rf_up - upLO;
                         break;
@@ -476,14 +574,14 @@
                         l_up = freq;
                         rf_up = l_up + upLO;
                         rf_down = rf_up - ttf;
-                        l_down = rf_down - downLO;
+                        l_down = downlinkLFromRf(rf_down, downLO, band);
                         break;
                         
                     case 'rf_up':
                         rf_up = freq;
                         l_up = rf_up - upLO;
                         rf_down = rf_up - ttf;
-                        l_down = rf_down - downLO;
+                        l_down = downlinkLFromRf(rf_down, downLO, band);
                         break;
                 }
                 
@@ -575,9 +673,10 @@
             document.getElementById('knownValue').value = 'l_down';
             document.getElementById('frequency').value = '1000';
             document.getElementById('rfBand').value = 'Ku';
-            document.getElementById('downLO').value = '10000';
-            document.getElementById('upLO').value = '13000';
             document.getElementById('ttf').value = '2225';
+
+            // Apply default LO preset for default band
+            updateLOPresetsForBand();
             
             // Clear results
             document.getElementById('result_l_down').textContent = '---';
@@ -598,6 +697,7 @@
         // Initialize on page load
         window.onload = function() {
             updateInputHint();
+            updateLOPresetsForBand();
         };
     </script>
 </body>
