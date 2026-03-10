@@ -62,6 +62,7 @@
             <button id="tabRF" class="tab-btn">RF Frequency Calculator</button>
             <button id="tabDataRate" class="tab-btn">Data Rate & Link Budget</button>
             <button id="tabEbnoRef" class="tab-btn">Eb/No Reference</button>
+            <button id="tabEIRP" class="tab-btn">EIRP Calculator</button>
         </div>
         <div id="tabContentPolarization">
             <iframe src="polarization_cal_v5.html" style="width:100%;height:1200px;border:none;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,0.05);background:white;"></iframe>
@@ -75,6 +76,9 @@
         <div id="tabContentEbnoRef" style="display:none;">
             <iframe src="ebno_modcod_reference.html" style="width:100%;height:1200px;border:none;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,0.05);background:white;"></iframe>
         </div>
+        <div id="tabContentEIRP" style="display:none;">
+            <iframe src="EIRP_calc.html" style="width:100%;height:1200px;border:none;border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,0.05);background:white;"></iframe>
+        </div>
     </div>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -82,49 +86,71 @@
             const tabRF = document.getElementById('tabRF');
             const tabDataRate = document.getElementById('tabDataRate');
             const tabEbnoRef = document.getElementById('tabEbnoRef');
+            const tabEIRP = document.getElementById('tabEIRP');
             const tabContentPolarization = document.getElementById('tabContentPolarization');
             const tabContentRF = document.getElementById('tabContentRF');
             const tabContentDataRate = document.getElementById('tabContentDataRate');
             const tabContentEbnoRef = document.getElementById('tabContentEbnoRef');
+            const tabContentEIRP = document.getElementById('tabContentEIRP');
             tabPolarization.addEventListener('click', function() {
                 tabPolarization.classList.add('active');
                 tabRF.classList.remove('active');
                 tabDataRate.classList.remove('active');
                 tabEbnoRef.classList.remove('active');
+                tabEIRP.classList.remove('active');
                 tabContentPolarization.style.display = '';
                 tabContentRF.style.display = 'none';
                 tabContentDataRate.style.display = 'none';
                 tabContentEbnoRef.style.display = 'none';
+                tabContentEIRP.style.display = 'none';
             });
             tabRF.addEventListener('click', function() {
                 tabRF.classList.add('active');
                 tabPolarization.classList.remove('active');
                 tabDataRate.classList.remove('active');
                 tabEbnoRef.classList.remove('active');
+                tabEIRP.classList.remove('active');
                 tabContentRF.style.display = '';
                 tabContentPolarization.style.display = 'none';
                 tabContentDataRate.style.display = 'none';
                 tabContentEbnoRef.style.display = 'none';
+                tabContentEIRP.style.display = 'none';
             });
             tabDataRate.addEventListener('click', function() {
                 tabDataRate.classList.add('active');
                 tabPolarization.classList.remove('active');
                 tabRF.classList.remove('active');
                 tabEbnoRef.classList.remove('active');
+                tabEIRP.classList.remove('active');
                 tabContentDataRate.style.display = '';
                 tabContentPolarization.style.display = 'none';
                 tabContentRF.style.display = 'none';
                 tabContentEbnoRef.style.display = 'none';
+                tabContentEIRP.style.display = 'none';
             });
             tabEbnoRef.addEventListener('click', function() {
                 tabEbnoRef.classList.add('active');
                 tabPolarization.classList.remove('active');
                 tabRF.classList.remove('active');
                 tabDataRate.classList.remove('active');
+                tabEIRP.classList.remove('active');
                 tabContentEbnoRef.style.display = '';
                 tabContentPolarization.style.display = 'none';
                 tabContentRF.style.display = 'none';
                 tabContentDataRate.style.display = 'none';
+                tabContentEIRP.style.display = 'none';
+            });
+            tabEIRP.addEventListener('click', function() {
+                tabEIRP.classList.add('active');
+                tabPolarization.classList.remove('active');
+                tabRF.classList.remove('active');
+                tabDataRate.classList.remove('active');
+                tabEbnoRef.classList.remove('active');
+                tabContentEIRP.style.display = '';
+                tabContentPolarization.style.display = 'none';
+                tabContentRF.style.display = 'none';
+                tabContentDataRate.style.display = 'none';
+                tabContentEbnoRef.style.display = 'none';
             });
         });
     </script>

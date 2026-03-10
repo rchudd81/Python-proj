@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EIRP Calculator</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            max-width: 850px;
+            width: 100%;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .header p {
+            margin: 10px 0 0;
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .content {
+            padding: 25px;
+        }
+
+        .section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #e9ecef;
+        }
+
+        .section-title {
+            margin: 0 0 15px 0;
+            color: #495057;
+            font-size: 18px;
+            font-weight: 600;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 8px;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .input-group label {
+            width: 210px;
+            color: #495057;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .input-group input,
+        .input-group select {
+            flex: 1;
+            min-width: 170px;
+            padding: 10px 12px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        .input-group input:focus,
+        .input-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .input-hint {
+            width: 100%;
+            margin-left: 210px;
+            font-size: 12px;
+            color: #6c757d;
+            margin-top: 2px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        button {
+            flex: 1;
+            color: white;
+            border: none;
+            padding: 14px 22px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .calculate-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: none;
+        }
+
+        .clear-btn {
+            background: linear-gradient(135deg, #868e96 0%, #495057 100%);
+        }
+
+        .add-btn {
+            background: linear-gradient(135deg, #2f9e44 0%, #2b8a3e 100%);
+            margin-top: 5px;
+        }
+
+        .remove-btn {
+            background: linear-gradient(135deg, #e03131 0%, #c92a2a 100%);
+            padding: 10px 14px;
+            font-size: 13px;
+            flex: 0 0 auto;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        .calculate-btn:hover {
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        }
+
+        .clear-btn:hover {
+            box-shadow: 0 10px 30px rgba(134, 142, 150, 0.4);
+        }
+
+        .add-btn:hover {
+            box-shadow: 0 10px 30px rgba(47, 158, 68, 0.4);
+        }
+
+        .remove-btn:hover {
+            box-shadow: 0 10px 30px rgba(224, 49, 49, 0.35);
+        }
+
+        .results {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            border: 1px solid #e9ecef;
+        }
+
+        .results h3 {
+            margin: 0 0 15px 0;
+            color: #495057;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .result-item {
+            display: flex;
+            padding: 10px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .result-item:last-child {
+            border-bottom: none;
+        }
+
+        .result-label {
+            width: 230px;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .result-value {
+            flex: 1;
+            color: #667eea;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+        }
+
+        .status {
+            margin-top: 15px;
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            border-left: 4px solid;
+        }
+
+        .status.info {
+            background: #e8f4fd;
+            color: #0c5460;
+            border-color: #2196f3;
+        }
+
+        .status.warning {
+            background: #fff3cd;
+            color: #856404;
+            border-color: #ffc107;
+        }
+
+        .signal-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .signal-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .signal-row input {
+            min-width: 140px;
+        }
+
+        .signal-name {
+            flex: 1.1;
+        }
+
+        .signal-power {
+            flex: 0.9;
+        }
+
+        .signal-include {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: #495057;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+
+        .signal-include input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+            accent-color: #667eea;
+        }
+
+        .table-wrap {
+            width: 100%;
+            overflow-x: auto;
+            margin-top: 10px;
+        }
+
+        .eeeirp-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            background: #ffffff;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .eeeirp-table th,
+        .eeeirp-table td {
+            border-bottom: 1px solid #dee2e6;
+            padding: 8px 10px;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        .eeeirp-table th {
+            background: #f1f3f5;
+            color: #495057;
+            font-weight: 600;
+        }
+
+        .eeeirp-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 14px;
+            background: #f1f3f5;
+            color: #868e96;
+            font-size: 12px;
+        }
+
+        @media (max-width: 700px) {
+            .input-group label {
+                width: 100%;
+            }
+
+            .input-hint {
+                margin-left: 0;
+            }
+
+            .result-item {
+                flex-direction: column;
+            }
+
+            .result-label {
+                width: 100%;
+                margin-bottom: 5px;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📡 EIRP Calculator</h1>
+            <p>EIRP = Active Gain (HPA Power) + Passive Gain (Antenna Gain)</p>
+        </div>
+
+        <div class="content">
+            <div class="section">
+                <h2 class="section-title">Input Parameters</h2>
+
+                <div class="input-group">
+                    <label for="antennaSelect">Antenna Type</label>
+                    <select id="antennaSelect"></select>
+                </div>
+
+                <div class="input-group">
+                    <label for="bandSelect">Transmit Band</label>
+                    <select id="bandSelect">
+                        <option value="C">C Band</option>
+                        <option value="X">X Band</option>
+                        <option value="Ku" selected>Ku Band</option>
+                        <option value="Ka">Ka Band</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label for="hpaSelect">HPA Model (Max Power)</label>
+                    <select id="hpaSelect"></select>
+                </div>
+
+                <div class="input-group">
+                    <label for="activePowerInput">Active Gain (Power Out)</label>
+                    <input id="activePowerInput" type="number" step="any" min="0" value="100" placeholder="Enter HPA output power">
+                    <select id="activePowerUnit">
+                        <option value="W" selected>Watts (W)</option>
+                        <option value="dBm">dBm</option>
+                    </select>
+                </div>
+                <div class="input-hint">Watts must be greater than 0. dBm can be any real value.</div>
+
+                <div class="button-group">
+                    <button class="calculate-btn" id="calculateBtn">Calculate EIRP</button>
+                    <button class="clear-btn" id="clearBtn" type="button">Reset</button>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2 class="section-title">ANB Probe (Active Narrowband)</h2>
+
+                <div class="input-group">
+                    <label for="probeChannelPowerInput">Probe Channel Power</label>
+                    <input id="probeChannelPowerInput" type="number" step="any" value="-45" placeholder="Probe channel power">
+                    <select id="channelPowerUnit">
+                        <option value="dBm" selected>dBm</option>
+                        <option value="dBW">dBW</option>
+                    </select>
+                </div>
+                <div class="input-hint">EEEIRP is estimated using: Signal EEEIRP = Probe EIRP + (Signal Ch Power - Probe Ch Power).</div>
+
+                <div class="input-group" style="margin-bottom: 5px;">
+                    <label>Other Signal Channels</label>
+                    <div style="flex:1;min-width:170px;color:#6c757d;font-size:13px;">Add each signal with its measured channel power.</div>
+                </div>
+                <div id="signalList" class="signal-list"></div>
+                <button class="add-btn" id="addSignalBtn" type="button">+ Add Signal</button>
+            </div>
+
+            <div class="results">
+                <h3>Results</h3>
+                <div class="result-item">
+                    <div class="result-label">Passive Gain (Antenna):</div>
+                    <div class="result-value" id="passiveGainOut">-- dBi</div>
+                </div>
+                <div class="result-item">
+                    <div class="result-label">Active Gain Input:</div>
+                    <div class="result-value" id="activeGainOut">-- dBW</div>
+                </div>
+                <div class="result-item">
+                    <div class="result-label">Calculated EIRP:</div>
+                    <div class="result-value" id="eirpOut">-- dBW</div>
+                </div>
+                <div class="result-item">
+                    <div class="result-label">Max HPA Output:</div>
+                    <div class="result-value" id="maxHpaOut">-- dBW</div>
+                </div>
+                <div class="result-item">
+                    <div class="result-label">Max EIRP (HPA + Antenna):</div>
+                    <div class="result-value" id="maxEirpOut">-- dBW</div>
+                </div>
+                <div class="result-item">
+                    <div class="result-label">EIRP Margin to Max:</div>
+                    <div class="result-value" id="eirpMarginOut">-- dB</div>
+                </div>
+                <div class="result-item">
+                    <div class="result-label">Probe EEEIRP Reference:</div>
+                    <div class="result-value" id="probeEeeirpOut">-- dBW</div>
+                </div>
+                <div class="result-item">
+                    <div class="result-label">Total EEEIRP (Checked Signals):</div>
+                    <div class="result-value" id="totalEeeirpOut">-- dBW</div>
+                </div>
+                <div class="result-item">
+                    <div class="result-label">EEEIRP Margin to Max (Checked):</div>
+                    <div class="result-value" id="totalEeeirpMarginOut">-- dB</div>
+                </div>
+
+                <div class="table-wrap">
+                    <table class="eeeirp-table">
+                        <thead>
+                            <tr>
+                                <th>Signal</th>
+                                <th>Channel Power</th>
+                                <th>Delta vs Probe</th>
+                                <th>Estimated Effective EIRP (EEEIRP)</th>
+                                <th>Include in Total</th>
+                            </tr>
+                        </thead>
+                        <tbody id="eeeirpTableBody">
+                            <tr>
+                                <td colspan="5">Add signal measurements and click Calculate EIRP.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="status info" id="statusBox">Values update automatically as inputs change.</div>
+            </div>
+        </div>
+
+        <div class="footer">
+            EIRP values are shown in dBW. Passive gain values are table-based by antenna and band.
+        </div>
+    </div>
+
+    <script>
+        const antennaTable = {
+            "0.6 m Dish": { C: 31.5, X: 35.0, Ku: 38.5, Ka: 42.0 },
+            "1.2 m Dish": { C: 0, X: 38.5, Ku: 43.5, Ka: 49.5 },
+            "1.8 m Dish": { C: 39.7, X: 41.9, Ku: 47.1, Ka: 52.7 },
+            "2.0 m Dish": { C: 40.5, X: 42.6, Ku: 47.8, Ka: 53.7 },
+            "2.4 m Dish": { C: 43.5, X: 47.0, Ku: 50.5, Ka: 54.0 },
+            "5.0 m Dish": { C: 50.0, X: 53.5, Ku: 57.0, Ka: 60.5 },
+            "Horn Antenna": { C: 20.0, X: 22.0, Ku: 24.0, Ka: 26.0 }
+        };
+
+        const hpaModels = [
+            { name: "HPA-20", watts: 20 },
+            { name: "HPA-25", watts: 25 },
+            { name: "HPA-40", watts: 40 },
+            { name: "HPA-50", watts: 50 },
+            { name: "HPA-100", watts: 100 },
+            { name: "HPA-200", watts: 200 },
+            { name: "HPA-750", watts: 750 }
+        ];
+
+        const antennaSelect = document.getElementById('antennaSelect');
+        const bandSelect = document.getElementById('bandSelect');
+        const hpaSelect = document.getElementById('hpaSelect');
+        const activePowerInput = document.getElementById('activePowerInput');
+        const activePowerUnit = document.getElementById('activePowerUnit');
+
+        const passiveGainOut = document.getElementById('passiveGainOut');
+        const activeGainOut = document.getElementById('activeGainOut');
+        const eirpOut = document.getElementById('eirpOut');
+        const maxHpaOut = document.getElementById('maxHpaOut');
+        const maxEirpOut = document.getElementById('maxEirpOut');
+        const eirpMarginOut = document.getElementById('eirpMarginOut');
+        const probeEeeirpOut = document.getElementById('probeEeeirpOut');
+        const totalEeeirpOut = document.getElementById('totalEeeirpOut');
+        const totalEeeirpMarginOut = document.getElementById('totalEeeirpMarginOut');
+        const probeChannelPowerInput = document.getElementById('probeChannelPowerInput');
+        const channelPowerUnit = document.getElementById('channelPowerUnit');
+        const signalList = document.getElementById('signalList');
+        const eeeirpTableBody = document.getElementById('eeeirpTableBody');
+        const statusBox = document.getElementById('statusBox');
+        const addSignalBtn = document.getElementById('addSignalBtn');
+
+        function wattsToDbw(watts) {
+            return 10 * Math.log10(watts);
+        }
+
+        function dbmToDbw(dbm) {
+            return dbm - 30;
+        }
+
+        function dbwToWatts(dbw) {
+            return Math.pow(10, dbw / 10);
+        }
+
+        function formatNumber(value, digits = 2) {
+            return Number.isFinite(value) ? value.toFixed(digits) : '--';
+        }
+
+        function addSignalRow(defaultName = '', defaultPower = '', defaultIncluded = true) {
+            const row = document.createElement('div');
+            row.className = 'signal-row';
+
+            const nameInput = document.createElement('input');
+            nameInput.type = 'text';
+            nameInput.className = 'signal-name';
+            nameInput.placeholder = 'Signal name';
+            nameInput.value = defaultName;
+
+            const powerInput = document.createElement('input');
+            powerInput.type = 'number';
+            powerInput.step = 'any';
+            powerInput.className = 'signal-power';
+            powerInput.placeholder = 'Channel power';
+            powerInput.value = defaultPower;
+
+            const includeWrap = document.createElement('label');
+            includeWrap.className = 'signal-include';
+
+            const includeCheckbox = document.createElement('input');
+            includeCheckbox.type = 'checkbox';
+            includeCheckbox.className = 'signal-include-checkbox';
+            includeCheckbox.checked = defaultIncluded;
+
+            const includeText = document.createElement('span');
+            includeText.textContent = 'Include';
+
+            includeWrap.appendChild(includeCheckbox);
+            includeWrap.appendChild(includeText);
+
+            const removeButton = document.createElement('button');
+            removeButton.type = 'button';
+            removeButton.className = 'remove-btn';
+            removeButton.textContent = 'Remove';
+            removeButton.addEventListener('click', () => {
+                row.remove();
+                calculateEirp();
+            });
+
+            powerInput.addEventListener('input', calculateEirp);
+            includeCheckbox.addEventListener('change', calculateEirp);
+            nameInput.addEventListener('change', calculateEirp);
+
+            row.appendChild(nameInput);
+            row.appendChild(powerInput);
+            row.appendChild(includeWrap);
+            row.appendChild(removeButton);
+            signalList.appendChild(row);
+        }
+
+        function getSignalMeasurements() {
+            const rows = Array.from(signalList.querySelectorAll('.signal-row'));
+            const signals = [];
+
+            rows.forEach((row, index) => {
+                const name = row.querySelector('.signal-name').value.trim() || `Signal ${index + 1}`;
+                const powerText = row.querySelector('.signal-power').value;
+                const power = Number(powerText);
+                const included = row.querySelector('.signal-include-checkbox').checked;
+
+                if (powerText !== '' && Number.isFinite(power)) {
+                    signals.push({ name, power, included });
+                }
+            });
+
+            return signals;
+        }
+
+        function updateEeeirpTable(probeEirpDbw, probeChannelPower, signals) {
+            eeeirpTableBody.innerHTML = '';
+            let totalCheckedWatts = 0;
+            let checkedCount = 0;
+
+            if (!signals.length) {
+                const emptyRow = document.createElement('tr');
+                emptyRow.innerHTML = '<td colspan="5">No valid signal channel-power measurements entered.</td>';
+                eeeirpTableBody.appendChild(emptyRow);
+                return { checkedCount, totalCheckedEeeirpDbw: null };
+            }
+
+            const powerUnit = channelPowerUnit.value;
+
+            signals.forEach((signal) => {
+                const deltaToProbe = signal.power - probeChannelPower;
+                const estimatedEeeirp = probeEirpDbw + deltaToProbe;
+
+                if (signal.included) {
+                    totalCheckedWatts += dbwToWatts(estimatedEeeirp);
+                    checkedCount += 1;
+                }
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${signal.name}</td>
+                    <td>${formatNumber(signal.power, 2)} ${powerUnit}</td>
+                    <td>${formatNumber(deltaToProbe, 2)} dB</td>
+                    <td>${formatNumber(estimatedEeeirp, 2)} dBW</td>
+                    <td>${signal.included ? 'Yes' : 'No'}</td>
+                `;
+                eeeirpTableBody.appendChild(row);
+            });
+
+            const totalCheckedEeeirpDbw = checkedCount > 0 ? wattsToDbw(totalCheckedWatts) : null;
+            return { checkedCount, totalCheckedEeeirpDbw };
+        }
+
+        function populateDropdowns() {
+            Object.keys(antennaTable).forEach((antennaName) => {
+                const option = document.createElement('option');
+                option.value = antennaName;
+                option.textContent = antennaName;
+                antennaSelect.appendChild(option);
+            });
+            antennaSelect.value = '1.2 m Dish';
+
+            hpaModels.forEach((hpa, index) => {
+                const option = document.createElement('option');
+                option.value = String(index);
+                option.textContent = `${hpa.name} (${hpa.watts} W max)`;
+                hpaSelect.appendChild(option);
+            });
+            hpaSelect.value = '2';
+        }
+
+        function calculateEirp() {
+            const antennaName = antennaSelect.value;
+            const band = bandSelect.value;
+            const hpaIndex = Number(hpaSelect.value);
+            const selectedHpa = hpaModels[hpaIndex];
+            const inputPower = Number(activePowerInput.value);
+            const unit = activePowerUnit.value;
+            const probeChannelPower = Number(probeChannelPowerInput.value);
+            const signals = getSignalMeasurements();
+
+            if (!selectedHpa) {
+                statusBox.className = 'status warning';
+                statusBox.textContent = 'Select a valid HPA model.';
+                return;
+            }
+
+            if (!Number.isFinite(inputPower)) {
+                statusBox.className = 'status warning';
+                statusBox.textContent = 'Enter a valid numeric active power value.';
+                return;
+            }
+
+            if (unit === 'W' && inputPower <= 0) {
+                statusBox.className = 'status warning';
+                statusBox.textContent = 'When using Watts, active power must be greater than 0.';
+                return;
+            }
+
+            if (!Number.isFinite(probeChannelPower)) {
+                statusBox.className = 'status warning';
+                statusBox.textContent = 'Enter a valid ANB probe channel power.';
+                return;
+            }
+
+            const passiveGain = antennaTable[antennaName][band];
+            const activeDbw = unit === 'W' ? wattsToDbw(inputPower) : dbmToDbw(inputPower);
+            const activeWatts = unit === 'W' ? inputPower : dbwToWatts(activeDbw);
+
+            const eirpDbw = activeDbw + passiveGain;
+
+            const maxHpaDbw = wattsToDbw(selectedHpa.watts);
+            const maxEirpDbw = maxHpaDbw + passiveGain;
+            const marginToMax = maxEirpDbw - eirpDbw;
+
+            passiveGainOut.textContent = `${formatNumber(passiveGain, 2)} dBi`;
+            activeGainOut.textContent = `${formatNumber(activeDbw, 2)} dBW (${formatNumber(activeWatts, 2)} W)`;
+            eirpOut.textContent = `${formatNumber(eirpDbw, 2)} dBW`;
+            maxHpaOut.textContent = `${formatNumber(maxHpaDbw, 2)} dBW (${selectedHpa.watts} W)`;
+            maxEirpOut.textContent = `${formatNumber(maxEirpDbw, 2)} dBW`;
+            eirpMarginOut.textContent = `${formatNumber(marginToMax, 2)} dB`;
+            probeEeeirpOut.textContent = `${formatNumber(eirpDbw, 2)} dBW`;
+
+            const tableSummary = updateEeeirpTable(eirpDbw, probeChannelPower, signals);
+            if (tableSummary.checkedCount > 0) {
+                totalEeeirpOut.textContent = `${formatNumber(tableSummary.totalCheckedEeeirpDbw, 2)} dBW (${tableSummary.checkedCount} checked)`;
+                const checkedMarginToMax = maxEirpDbw - tableSummary.totalCheckedEeeirpDbw;
+                totalEeeirpMarginOut.textContent = `${formatNumber(checkedMarginToMax, 2)} dB`;
+            } else {
+                totalEeeirpOut.textContent = '-- dBW (0 checked)';
+                totalEeeirpMarginOut.textContent = '-- dB (0 checked)';
+            }
+
+            if (marginToMax < 0) {
+                statusBox.className = 'status warning';
+                statusBox.textContent = 'EIRP calculated. Input active power exceeds selected HPA maximum rating.';
+            } else {
+                statusBox.className = 'status info';
+                statusBox.textContent = 'EIRP and EEEIRP values calculated successfully.';
+            }
+        }
+
+        function resetForm() {
+            antennaSelect.value = '1.2 m Dish';
+            bandSelect.value = 'Ku';
+            hpaSelect.value = '2';
+            activePowerInput.value = '100';
+            activePowerUnit.value = 'W';
+            probeChannelPowerInput.value = '-45';
+            channelPowerUnit.value = 'dBm';
+
+            signalList.innerHTML = '';
+            addSignalRow('Signal 1', '-47');
+
+            passiveGainOut.textContent = '-- dBi';
+            activeGainOut.textContent = '-- dBW';
+            eirpOut.textContent = '-- dBW';
+            maxHpaOut.textContent = '-- dBW';
+            maxEirpOut.textContent = '-- dBW';
+            eirpMarginOut.textContent = '-- dB';
+            probeEeeirpOut.textContent = '-- dBW';
+            totalEeeirpOut.textContent = '-- dBW';
+            totalEeeirpMarginOut.textContent = '-- dB';
+            eeeirpTableBody.innerHTML = '<tr><td colspan="5">Add signal measurements and click Calculate EIRP.</td></tr>';
+
+            statusBox.className = 'status info';
+            statusBox.textContent = 'Values update automatically as inputs change.';
+        }
+
+        document.getElementById('calculateBtn').addEventListener('click', calculateEirp);
+        document.getElementById('clearBtn').addEventListener('click', resetForm);
+        addSignalBtn.addEventListener('click', () => {
+            addSignalRow('', '', true);
+            calculateEirp();
+        });
+
+        antennaSelect.addEventListener('change', calculateEirp);
+        bandSelect.addEventListener('change', calculateEirp);
+        hpaSelect.addEventListener('change', calculateEirp);
+        activePowerInput.addEventListener('input', calculateEirp);
+        activePowerUnit.addEventListener('change', calculateEirp);
+        probeChannelPowerInput.addEventListener('input', calculateEirp);
+        channelPowerUnit.addEventListener('change', calculateEirp);
+
+        populateDropdowns();
+        addSignalRow('Signal 1', '-47', true);
+        addSignalRow('Signal 2', '-50', true);
+        calculateEirp();
+    </script>
+</body>
+</html>
