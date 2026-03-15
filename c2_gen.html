@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>C2 Dynamic Helper</title>
+    <style>
+        :root { --bg: #1a1a1a; --card: #2d2d2d; --text: #e0e0e0; --accent: #007bff; --success: #28a745; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); padding: 20px; }
+        .container { max-width: 800px; margin: auto; background: var(--card); padding: 25px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        .nav-tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #444; padding-bottom: 10px; }
+        .tab-btn { background: #444; color: white; border: none; padding: 10px 20px; cursor: pointer; border-radius: 4px; }
+        .tab-btn.active { background: var(--accent); }
+        .view { display: none; }
+        .view.active { display: block; }
+        .session-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 15px; }
+        .session-btn { background: #555; color: white; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-size: 0.9em; }
+        .session-btn:active { transform: translateY(1px); }
+        .session-status { font-size: 0.8em; color: #bbb; min-height: 1em; }
+        .session-controls input[type="text"] { flex: 1 1 200px; min-width: 160px; padding: 8px; background: #3d3d3d; border: 1px solid #555; color: white; border-radius: 4px; box-sizing: border-box; }
+        
+        .config-section { margin-bottom: 20px; border: 1px solid #444; padding: 15px; border-radius: 5px; }
+        textarea { width: 100%; height: 80px; background: #111; color: #00ff00; border: 1px solid #555; font-family: monospace; padding: 10px; box-sizing: border-box; }
+        .input-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; color: #aaa; font-size: 0.9em; }
+        select, input { width: 100%; padding: 10px; background: #3d3d3d; border: 1px solid #555; color: white; border-radius: 4px; box-sizing: border-box; }
+        
+        #output-box { background: #000; color: #00ff00; padding: 20px; border: 2px solid var(--accent); border-radius: 5px; font-size: 1.2em; min-height: 50px; margin: 20px 0; display: flex; align-items: center; justify-content: center; text-align: center; }
+        .copy-btn { background: var(--success); color: white; width: 100%; padding: 15px; font-size: 1.1em; font-weight: bold; border: none; cursor: pointer; border-radius: 4px; }
+        .copy-btn:active { transform: translateY(2px); }
+        .hint { font-size: 0.8em; color: #888; margin-top: 5px; }
+        .log-section { border: 1px solid #444; border-radius: 5px; padding: 15px; background: #1d1d1d; }
+        .log-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-weight: bold; }
+        .log-actions { display: flex; gap: 8px; }
+        .small-btn { background: #666; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8em; }
+        .small-btn:active { transform: translateY(1px); }
+        .log-list { max-height: 200px; overflow-y: auto; padding-left: 18px; margin: 0; }
+        .log-list li { margin-bottom: 6px; font-size: 0.9em; color: #c0ffc0; }
+        .frequency-panel { border: 1px solid #444; border-radius: 6px; padding: 15px; margin-bottom: 20px; background: #222; }
+        .frequency-panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .frequency-panel h3 { margin: 0; font-size: 1.1em; }
+        .frequency-controls { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; }
+        .frequency-control { flex: 1 1 160px; }
+        .frequency-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+        .frequency-field label { font-size: 0.85em; color: #ccc; margin-bottom: 4px; display: block; }
+        .frequency-field input, .frequency-control select { width: 100%; padding: 8px; background: #3d3d3d; border: 1px solid #555; color: white; border-radius: 4px; }
+        .frequency-field input:focus, .frequency-control select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0,123,255,0.2); }
+        .frequency-hint { font-size: 0.75em; color: #888; margin: 0; }
+        .custom-panel { border: 1px solid #444; border-radius: 6px; padding: 15px; margin-bottom: 20px; background: #242424; }
+        .custom-panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .custom-panel h3 { margin: 0; font-size: 1.05em; }
+        .custom-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+        .custom-field label { font-size: 0.85em; color: #ccc; margin-bottom: 4px; display: block; }
+        .custom-field input { width: 100%; padding: 8px; background: #3d3d3d; border: 1px solid #555; color: white; border-radius: 4px; }
+        .custom-field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0,123,255,0.2); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="nav-tabs">
+        <button class="tab-btn active" data-tab="op" onclick="showTab('op', this)">Operational Mode</button>
+        <button class="tab-btn" data-tab="config" onclick="showTab('config', this)">Configuration Mode</button>
+    </div>
+
+    <div class="session-controls">
+        <input id="session-name" type="text" placeholder="Session name">
+        <button class="session-btn" onclick="saveSession()">Save Session JSON</button>
+        <button class="session-btn" onclick="loadSession()">Load Session JSON</button>
+        <input id="session-file" type="file" accept="application/json" style="display:none" onchange="handleSessionFile(event)">
+        <span id="session-status" class="session-status"></span>
+    </div>
+
+    <div id="view-config" class="view">
+        <h3>1. Define Keywords</h3>
+        <p class="hint">One keyword per line formatted as KEYWORD: item1, item2. Leave the right side blank for free-text entry.</p>
+        <div class="config-section">
+            <textarea id="keyword-defs">CREW: REAPER 1-1, SABER 2-4, GHOST 5-1
+CODE: ENGAGED, SMACK, CEASE FIRE, WINCHESTER
+TARGET:</textarea>
+        </div>
+
+        <h3>2. Define Phrase Templates</h3>
+        <p class="hint">Use bracketed keywords like [CREW], [CODE], [TARGET]. Prefix a template with <code>CATEGORY|</code> to group it (e.g., REPORTS|[CREW], STATUS?).</p>
+        <div class="config-section">
+            <textarea id="list-templates">CONTACT|[CREW], THIS IS BASE, [CODE] TARGET [TARGET]. ACKNOWLEDGE.
+CONTACT|ALL STATIONS, THIS IS BASE. [CREW] IS NOW [CODE].
+REPORT|[CREW], REPORT STATUS OF [TARGET].</textarea>
+        </div>
+
+        <h3>3. Additional Parameters</h3>
+        <p class="hint">One per line: PLACEHOLDER|Label|type|default. Example: EIRP|EIRP (dBW)|number|45</p>
+        <div class="config-section">
+            <textarea id="custom-param-defs">EIRP|EIRP (dBW)|number|45
+EEEIRP|EEEIRP (dBW)|number|45
+START|Start Time|text|1200Z
+STOP|Stop Time|text|1230Z</textarea>
+        </div>
+        <button class="tab-btn active" style="width:100%" onclick="saveConfig()">Apply Configuration</button>
+    </div>
+
+    <div id="view-op" class="view active">
+        <div class="frequency-panel">
+            <div class="frequency-panel-header">
+                <div>
+                    <h3>Frequency Planner</h3>
+                    <p class="frequency-hint">Edit any value to auto-fill placeholders like [IF-DL], [RF-UL], and [TTF].</p>
+                </div>
+                <button class="small-btn" type="button" onclick="resetFrequencyDefaults()">Reset</button>
+            </div>
+            <div class="frequency-controls">
+                <div class="frequency-control">
+                    <label for="freq-band">RF Band</label>
+                    <select id="freq-band"></select>
+                </div>
+                <div class="frequency-control">
+                    <label for="freq-lo-preset">LO Preset</label>
+                    <select id="freq-lo-preset"></select>
+                </div>
+            </div>
+            <div class="frequency-grid">
+                <div class="frequency-field">
+                    <label for="freq-if-dl">IF-DL (MHz)</label>
+                    <input type="number" id="freq-if-dl" step="0.001">
+                </div>
+                <div class="frequency-field">
+                    <label for="freq-dl-lo">DL-LO (MHz)</label>
+                    <input type="number" id="freq-dl-lo" step="0.001">
+                </div>
+                <div class="frequency-field">
+                    <label for="freq-rf-dl">RF-DL (MHz)</label>
+                    <input type="number" id="freq-rf-dl" step="0.001">
+                </div>
+                <div class="frequency-field">
+                    <label for="freq-ttf">TTF (MHz)</label>
+                    <input type="number" id="freq-ttf" step="0.001">
+                </div>
+                <div class="frequency-field">
+                    <label for="freq-rf-ul">RF-UL (MHz)</label>
+                    <input type="number" id="freq-rf-ul" step="0.001">
+                </div>
+                <div class="frequency-field">
+                    <label for="freq-ul-lo">UL-LO (MHz)</label>
+                    <input type="number" id="freq-ul-lo" step="0.001">
+                </div>
+                <div class="frequency-field">
+                    <label for="freq-if-ul">IF-UL (MHz)</label>
+                    <input type="number" id="freq-if-ul" step="0.001">
+                </div>
+            </div>
+        </div>
+
+        <div class="custom-panel">
+            <div class="custom-panel-header">
+                <div>
+                    <h3>Additional Parameters</h3>
+                    <p class="frequency-hint">Define custom placeholders in Configuration mode to edit them here.</p>
+                </div>
+                <button class="small-btn" type="button" onclick="resetCustomFields()">Clear</button>
+            </div>
+            <div id="custom-parameters-container" class="custom-grid"></div>
+            <p id="custom-empty" class="hint" style="margin-top:12px; display:none">Add parameters in Configuration mode to enable this panel.</p>
+        </div>
+
+        <div class="input-group">
+            <label>Template Category</label>
+            <select id="template-category" onchange="handleCategoryChange()"></select>
+        </div>
+
+        <div class="input-group">
+            <label>Select Template</label>
+            <select id="op-template" onchange="handleTemplateChange()"></select>
+        </div>
+
+        <div id="dynamic-inputs"></div>
+
+        <div id="output-box">Select options to generate phrase...</div>
+        <button class="copy-btn" onclick="copyText()">COPY TO CHAT</button>
+
+        <div class="log-section">
+            <div class="log-header">
+                <span>Phrase Log</span>
+                <div class="log-actions">
+                    <button class="small-btn" onclick="exportLog()">Export Log</button>
+                </div>
+            </div>
+            <p id="log-empty" class="hint" style="margin-top:0">No phrases copied yet.</p>
+            <ol id="phrase-log" class="log-list"></ol>
+        </div>
+    </div>
+</div>
+
+<script>
+    const placeholderRegex = /\[([A-Z0-9_\-]+)\]/gi;
+    const SESSION_FILENAME_PREFIX = 'c2_session';
+    const DEFAULT_TEMPLATE_CATEGORY = 'General';
+    const CATEGORY_ALL = '__ALL_CATEGORIES__';
+    const FREQUENCY_PLACEHOLDER_MAP = {
+        'IF-DL': 'ifDL',
+        'DL-LO': 'dlLO',
+        'RF-DL': 'rfDL',
+        'TTF': 'ttf',
+        'RF-UL': 'rfUL',
+        'UL-LO': 'ulLO',
+        'IF-UL': 'ifUL'
+    };
+    const FREQUENCY_ANCHORS = new Set(['ifDL', 'rfDL', 'rfUL', 'ifUL']);
+    const FREQUENCY_FIELD_CONFIG = [
+        { key: 'ifDL', elementId: 'freq-if-dl', anchor: true },
+        { key: 'dlLO', elementId: 'freq-dl-lo', anchor: false },
+        { key: 'rfDL', elementId: 'freq-rf-dl', anchor: true },
+        { key: 'ttf', elementId: 'freq-ttf', anchor: false },
+        { key: 'rfUL', elementId: 'freq-rf-ul', anchor: true },
+        { key: 'ulLO', elementId: 'freq-ul-lo', anchor: false },
+        { key: 'ifUL', elementId: 'freq-if-ul', anchor: true }
+    ];
+    const DEFAULT_FREQUENCY_STATE = {
+        ifDL: 1000,
+        dlLO: 10750,
+        rfDL: 11750,
+        ttf: 2225,
+        rfUL: 13975,
+        ulLO: 13000,
+        ifUL: 975
+    };
+    const frequencyState = { ...DEFAULT_FREQUENCY_STATE };
+    let lastFrequencyAnchor = 'ifDL';
+    let frequencyPlaceholderValues = {};
+    let customFieldDefs = [];
+    const customFieldState = {};
+    let customPlaceholderValues = {};
+    let customPlaceholderSet = new Set();
+    const BANDS = {
+        'C': {
+            name: 'C Band',
+            downlink: { min: 3.7, max: 4.2 },
+            uplink: { min: 5.925, max: 6.425 }
+        },
+        'X': {
+            name: 'X Band',
+            downlink: { min: 7.25, max: 7.75 },
+            uplink: { min: 7.9, max: 8.4 }
+        },
+        'Ku': {
+            name: 'Ku Band',
+            downlink: { min: 10.7, max: 12.75 },
+            uplink: { min: 13.75, max: 14.5 }
+        },
+        'Ka': {
+            name: 'Ka Band',
+            downlink: { min: 17.3, max: 20.2 },
+            uplink: { min: 27.0, max: 31.0 }
+        }
+    };
+    const LO_PRESETS = {
+        'C': [
+            { label: 'Airbus Ranger C (Down 5150 / Up 4900)', downLO: 5150, upLO: 4900 },
+            { label: 'Satlite C (Down 5150 / Up 5750)', downLO: 5150, upLO: 5750 },
+            { label: 'Hawkeye C (Down 5150 / Up 4900)', downLO: 5150, upLO: 4900 },
+            { label: 'C-Band Standard (Down 5150 / Up 4900)', downLO: 5150, upLO: 4900 },
+            { label: 'C-Band Wide IF (Down 5150 / Up 5750)', downLO: 5150, upLO: 5750 }
+        ],
+        'X': [
+            { label: 'Airbus Ranger X (Down 6300 / Up 7000)', downLO: 6300, upLO: 7000 },
+            { label: 'Satlite X (Down 6300 / Up 7000)', downLO: 6300, upLO: 7000 },
+            { label: 'Hawkeye X (Down 6650 / Up 7000)', downLO: 6650, upLO: 7000 },
+            { label: 'Tampa Antennas X (Down 6300 / Up 6950)', downLO: 6300, upLO: 6950 },
+            { label: 'X-Band Standard (Down 6300 / Up 7000)', downLO: 6300, upLO: 7000 },
+            { label: 'X-Band Alt (Down 6650 / Up 7000)', downLO: 6650, upLO: 7000 }
+        ],
+        'Ku': [
+            { label: 'Airbus Ranger Ku Low (Down 10000 / Up 13000)', downLO: 10000, upLO: 13000 },
+            { label: 'Airbus Ranger Ku Mid (Down 10750 / Up 13000)', downLO: 10750, upLO: 13000 },
+            { label: 'Airbus Ranger Ku High (Down 11200 / Up 13000)', downLO: 11200, upLO: 13000 },
+            { label: 'Satlite Ku (Down 10600 / Up 13000)', downLO: 10600, upLO: 13000 },
+            { label: 'Hawkeye III Ku Low (Down 10000 / Up 13000)', downLO: 10000, upLO: 13000 },
+            { label: 'Hawkeye III Ku Mid (Down 10750 / Up 13000)', downLO: 10750, upLO: 13000 },
+            { label: 'Hawkeye III Ku High (Down 11200 / Up 13000)', downLO: 11200, upLO: 13000 },
+            { label: 'Tampa Antennas Ku Low (Down 10000 / Up 12800)', downLO: 10000, upLO: 12800 },
+            { label: 'Tampa Antennas Ku High (Down 10800 / Up 12800)', downLO: 10800, upLO: 12800 },
+            { label: 'Ku-Band Universal Low (Down 10000 / Up 13000)', downLO: 10000, upLO: 13000 },
+            { label: 'Ku-Band Universal Low (Down 10750 / Up 13000)', downLO: 10750, upLO: 13000 },
+            { label: 'Ku-Band Universal High (Down 11200 / Up 13000)', downLO: 11200, upLO: 13000 }
+        ],
+        'Ka': [
+            { label: 'Airbus Ranger Ka (Down 21200 / Up 29250)', downLO: 21200, upLO: 29250 },
+            { label: 'Satlite Ka (Down 21000 / Up 29000)', downLO: 21000, upLO: 29000 },
+            { label: 'Hawkeye Ka (Down 21200 / Up 29250)', downLO: 21200, upLO: 29250 },
+            { label: 'Tampa Antennas Ka (Down 21000 / Up 29000)', downLO: 21000, upLO: 29000 },
+            { label: 'Ka-Band Typical (Down 21200 / Up 29250)', downLO: 21200, upLO: 29250 },
+            { label: 'Ka-Band Alt (Down 21000 / Up 29000)', downLO: 21000, upLO: 29000 }
+        ]
+    };
+    let keywordMap = {};
+    let templates = [];
+    let templateCategories = [];
+    let currentTemplateCategory = CATEGORY_ALL;
+    let lastTemplateIndex = null;
+    const currentValues = {};
+    let phraseLog = [];
+
+    function setSessionStatus(message, isError = false) {
+        const statusEl = document.getElementById('session-status');
+        if (!statusEl) return;
+        statusEl.style.color = isError ? '#ff7777' : '#bbb';
+        statusEl.textContent = message;
+        clearTimeout(setSessionStatus._timer);
+        if (message) {
+            setSessionStatus._timer = setTimeout(() => {
+                statusEl.textContent = '';
+            }, 2500);
+        }
+    }
+
+    function initFrequencyPanel() {
+        const bandSelect = document.getElementById('freq-band');
+        if (bandSelect && !bandSelect.options.length) {
+            Object.keys(BANDS).forEach(key => {
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = `${key} Band`;
+                bandSelect.appendChild(option);
+            });
+        }
+        if (bandSelect && !bandSelect.dataset.bound) {
+            bandSelect.dataset.bound = 'true';
+            bandSelect.addEventListener('change', () => {
+                populateFrequencyPresetSelect(true);
+                updateDerivedFrequencies(lastFrequencyAnchor);
+            });
+        }
+
+        const presetSelect = document.getElementById('freq-lo-preset');
+        if (presetSelect && !presetSelect.dataset.bound) {
+            presetSelect.dataset.bound = 'true';
+            presetSelect.addEventListener('change', applyFrequencyPreset);
+        }
+
+        FREQUENCY_FIELD_CONFIG.forEach(({ key, elementId, anchor }) => {
+            const input = document.getElementById(elementId);
+            if (input && !input.dataset.bound) {
+                input.dataset.bound = 'true';
+                input.addEventListener('input', (event) => handleFrequencyInput(key, event.target.value, anchor));
+            }
+        });
+
+        resetFrequencyDefaults();
+    }
+
+    function populateFrequencyPresetSelect(applyDefault = false) {
+        const select = document.getElementById('freq-lo-preset');
+        if (!select) return;
+        const band = getSelectedFrequencyBand();
+        const presets = LO_PRESETS[band] || [];
+        select.innerHTML = '';
+        presets.forEach((preset, index) => {
+            const option = document.createElement('option');
+            option.value = String(index);
+            option.textContent = preset.label;
+            select.appendChild(option);
+        });
+        select.disabled = !presets.length;
+        if (applyDefault && presets.length) {
+            select.value = '0';
+            applyFrequencyPreset();
+        }
+    }
+
+    function applyFrequencyPreset() {
+        const select = document.getElementById('freq-lo-preset');
+        if (!select) return;
+        const band = getSelectedFrequencyBand();
+        const presets = LO_PRESETS[band] || [];
+        const idx = parseInt(select.value, 10);
+        if (Number.isNaN(idx) || !presets[idx]) {
+            return;
+        }
+        frequencyState.dlLO = presets[idx].downLO;
+        frequencyState.ulLO = presets[idx].upLO;
+        updateDerivedFrequencies(lastFrequencyAnchor);
+    }
+
+    function handleFrequencyInput(key, rawValue, isAnchor) {
+        if (rawValue === '' || rawValue === null || rawValue === undefined) {
+            return;
+        }
+        const value = parseFloat(rawValue);
+        if (Number.isNaN(value)) {
+            return;
+        }
+        frequencyState[key] = value;
+        if (isAnchor && FREQUENCY_ANCHORS.has(key)) {
+            lastFrequencyAnchor = key;
+            updateDerivedFrequencies(key);
+        } else {
+            updateDerivedFrequencies(lastFrequencyAnchor);
+        }
+    }
+
+    function updateDerivedFrequencies(anchorKey = 'ifDL') {
+        const band = getSelectedFrequencyBand();
+        const resolvedAnchor = FREQUENCY_ANCHORS.has(anchorKey) ? anchorKey : 'ifDL';
+        switch (resolvedAnchor) {
+            case 'rfDL':
+                frequencyState.ifDL = computeIfFromRf(frequencyState.rfDL, frequencyState.dlLO, band);
+                frequencyState.rfUL = frequencyState.rfDL + frequencyState.ttf;
+                frequencyState.ifUL = frequencyState.rfUL - frequencyState.ulLO;
+                break;
+            case 'rfUL':
+                frequencyState.rfDL = frequencyState.rfUL - frequencyState.ttf;
+                frequencyState.ifDL = computeIfFromRf(frequencyState.rfDL, frequencyState.dlLO, band);
+                frequencyState.ifUL = frequencyState.rfUL - frequencyState.ulLO;
+                break;
+            case 'ifUL':
+                frequencyState.rfUL = frequencyState.ifUL + frequencyState.ulLO;
+                frequencyState.rfDL = frequencyState.rfUL - frequencyState.ttf;
+                frequencyState.ifDL = computeIfFromRf(frequencyState.rfDL, frequencyState.dlLO, band);
+                break;
+            case 'ifDL':
+            default:
+                frequencyState.rfDL = computeRfFromIf(frequencyState.ifDL, frequencyState.dlLO, band);
+                frequencyState.rfUL = frequencyState.rfDL + frequencyState.ttf;
+                frequencyState.ifUL = frequencyState.rfUL - frequencyState.ulLO;
+                break;
+        }
+        lastFrequencyAnchor = resolvedAnchor;
+        refreshFrequencyUI();
+    }
+
+    function computeRfFromIf(ifMHz, downLO, band) {
+        if (band === 'C') {
+            return downLO - ifMHz;
+        }
+        return ifMHz + downLO;
+    }
+
+    function computeIfFromRf(rfMHz, downLO, band) {
+        if (band === 'C') {
+            return downLO - rfMHz;
+        }
+        return rfMHz - downLO;
+    }
+
+    function refreshFrequencyUI() {
+        const formatNumber = (value) => Number.isFinite(value) ? value.toFixed(3) : '';
+        FREQUENCY_FIELD_CONFIG.forEach(({ key, elementId }) => {
+            const input = document.getElementById(elementId);
+            if (!input) return;
+            if (document.activeElement === input) {
+                return;
+            }
+            input.value = formatNumber(frequencyState[key]);
+        });
+        updateFrequencyPlaceholderValues();
+        generate();
+    }
+
+    function updateFrequencyPlaceholderValues() {
+        frequencyPlaceholderValues = {};
+        Object.entries(FREQUENCY_PLACEHOLDER_MAP).forEach(([placeholder, stateKey]) => {
+            const value = frequencyState[stateKey];
+            frequencyPlaceholderValues[placeholder] = Number.isFinite(value) ? value.toFixed(3) : '';
+        });
+    }
+
+    function getPlaceholderValue(key) {
+        if (Object.prototype.hasOwnProperty.call(frequencyPlaceholderValues, key)) {
+            return frequencyPlaceholderValues[key] || '';
+        }
+        if (Object.prototype.hasOwnProperty.call(customPlaceholderValues, key)) {
+            return customPlaceholderValues[key] || '';
+        }
+        const stored = currentValues[key];
+        if (typeof stored === 'number') {
+            return stored.toString();
+        }
+        return (stored || '').toString();
+    }
+
+    function resetFrequencyDefaults() {
+        const bandSelect = document.getElementById('freq-band');
+        if (bandSelect) {
+            bandSelect.value = 'Ku';
+        }
+        lastFrequencyAnchor = 'ifDL';
+        frequencyState.ifDL = DEFAULT_FREQUENCY_STATE.ifDL;
+        frequencyState.rfDL = DEFAULT_FREQUENCY_STATE.rfDL;
+        frequencyState.rfUL = DEFAULT_FREQUENCY_STATE.rfUL;
+        frequencyState.ifUL = DEFAULT_FREQUENCY_STATE.ifUL;
+        frequencyState.ttf = DEFAULT_FREQUENCY_STATE.ttf;
+        frequencyState.dlLO = DEFAULT_FREQUENCY_STATE.dlLO;
+        frequencyState.ulLO = DEFAULT_FREQUENCY_STATE.ulLO;
+        populateFrequencyPresetSelect(true);
+        updateDerivedFrequencies('ifDL');
+    }
+
+    function serializeFrequencyState() {
+        const presetSelect = document.getElementById('freq-lo-preset');
+        return {
+            band: getSelectedFrequencyBand(),
+            preset: presetSelect ? presetSelect.value : '',
+            lastAnchor: lastFrequencyAnchor,
+            values: { ...frequencyState }
+        };
+    }
+
+    function restoreFrequencyState(payload) {
+        if (!payload || typeof payload !== 'object') {
+            resetFrequencyDefaults();
+            return;
+        }
+        const band = payload.band && BANDS[payload.band] ? payload.band : 'Ku';
+        const bandSelect = document.getElementById('freq-band');
+        if (bandSelect) {
+            bandSelect.value = band;
+        }
+        populateFrequencyPresetSelect(false);
+        const presetSelect = document.getElementById('freq-lo-preset');
+        if (presetSelect) {
+            const desiredValue = String(payload.preset || '');
+            const hasOption = Array.from(presetSelect.options).some(opt => opt.value === desiredValue);
+            if (hasOption) {
+                presetSelect.value = desiredValue;
+            }
+        }
+        if (payload.values && typeof payload.values === 'object') {
+            Object.keys(frequencyState).forEach(key => {
+                const value = parseFloat(payload.values[key]);
+                if (!Number.isNaN(value)) {
+                    frequencyState[key] = value;
+                }
+            });
+        }
+        if (payload.lastAnchor && FREQUENCY_ANCHORS.has(payload.lastAnchor)) {
+            lastFrequencyAnchor = payload.lastAnchor;
+        } else {
+            lastFrequencyAnchor = 'ifDL';
+        }
+        updateDerivedFrequencies(lastFrequencyAnchor);
+    }
+
+    function getSelectedFrequencyBand() {
+        const select = document.getElementById('freq-band');
+        const value = select && select.value ? select.value : 'Ku';
+        return BANDS[value] ? value : 'Ku';
+    }
+
+    function parseCustomParamDefs(raw) {
+        const defs = [];
+        raw.split('\n').forEach(line => {
+            const trimmed = line.trim();
+            if (!trimmed) {
+                return;
+            }
+            const parts = trimmed.split('|').map(segment => segment.trim());
+            const placeholder = (parts[0] || '').toUpperCase().replace(/[^A-Z0-9_\-]/g, '');
+            if (!placeholder) {
+                return;
+            }
+            const label = parts[1] || placeholder;
+            const type = (parts[2] || 'text').toLowerCase() === 'number' ? 'number' : 'text';
+            const defaultValue = parts[3] !== undefined ? parts[3] : '';
+            defs.push({ placeholder, label, type, defaultValue });
+        });
+        return defs;
+    }
+
+    function applyCustomDefinitions(defs) {
+        customFieldDefs = defs;
+        customPlaceholderSet = new Set(defs.map(def => def.placeholder));
+        const existingKeys = new Set(Object.keys(customFieldState));
+        defs.forEach(def => {
+            if (!Object.prototype.hasOwnProperty.call(customFieldState, def.placeholder)) {
+                customFieldState[def.placeholder] = def.defaultValue || '';
+            }
+            existingKeys.delete(def.placeholder);
+        });
+        existingKeys.forEach(key => delete customFieldState[key]);
+        renderCustomFields();
+        updateCustomPlaceholderValues();
+    }
+
+    function renderCustomFields() {
+        const container = document.getElementById('custom-parameters-container');
+        const emptyState = document.getElementById('custom-empty');
+        if (!container || !emptyState) {
+            return;
+        }
+        container.innerHTML = '';
+        if (!customFieldDefs.length) {
+            emptyState.style.display = 'block';
+            updateCustomPlaceholderValues();
+            return;
+        }
+        emptyState.style.display = 'none';
+        customFieldDefs.forEach(def => {
+            const field = document.createElement('div');
+            field.className = 'custom-field';
+
+            const label = document.createElement('label');
+            label.textContent = def.label;
+            field.appendChild(label);
+
+            const input = document.createElement('input');
+            input.type = def.type === 'number' ? 'number' : 'text';
+            if (def.type === 'number') {
+                input.step = '0.1';
+            }
+            input.value = customFieldState[def.placeholder] || '';
+            input.addEventListener('input', (event) => handleCustomFieldInput(def.placeholder, event.target.value));
+            field.appendChild(input);
+
+            container.appendChild(field);
+        });
+        updateCustomPlaceholderValues();
+    }
+
+    function isReservedPlaceholder(key) {
+        return Object.prototype.hasOwnProperty.call(FREQUENCY_PLACEHOLDER_MAP, key) || customPlaceholderSet.has(key);
+    }
+
+    function handleCustomFieldInput(key, rawValue) {
+        customFieldState[key] = rawValue ?? '';
+        updateCustomPlaceholderValues();
+        generate();
+    }
+
+    function updateCustomPlaceholderValues() {
+        customPlaceholderValues = {};
+        customFieldDefs.forEach(def => {
+            const value = customFieldState[def.placeholder] ?? '';
+            customPlaceholderValues[def.placeholder] = value.toString();
+        });
+    }
+
+    function resetCustomFields(triggerGenerate = true) {
+        customFieldDefs.forEach(def => {
+            customFieldState[def.placeholder] = def.defaultValue || '';
+        });
+        renderCustomFields();
+        if (triggerGenerate) {
+            generate();
+        }
+    }
+
+    function serializeCustomState() {
+        const values = {};
+        customFieldDefs.forEach(def => {
+            values[def.placeholder] = customFieldState[def.placeholder] ?? '';
+        });
+        return {
+            values
+        };
+    }
+
+    function restoreCustomState(payload) {
+        if (!payload || typeof payload !== 'object' || !payload.values) {
+            resetCustomFields();
+            return;
+        }
+        let updated = false;
+        customFieldDefs.forEach(def => {
+            if (Object.prototype.hasOwnProperty.call(payload.values, def.placeholder)) {
+                customFieldState[def.placeholder] = payload.values[def.placeholder] ?? '';
+                updated = true;
+            } else {
+                customFieldState[def.placeholder] = def.defaultValue || '';
+            }
+        });
+        renderCustomFields();
+        if (updated) {
+            generate();
+        }
+    }
+
+    function sanitizeFileName(name) {
+        return name
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9-_]+/g, '_')
+            .replace(/_+/g, '_')
+            .replace(/^_|_$/g, '') || SESSION_FILENAME_PREFIX;
+    }
+
+    function collectSessionPayload(sessionName) {
+        return {
+            name: sessionName,
+            keywordDefs: document.getElementById('keyword-defs').value,
+            templatesRaw: document.getElementById('list-templates').value,
+            customDefsRaw: (document.getElementById('custom-param-defs') || { value: '' }).value,
+            log: phraseLog,
+            frequency: serializeFrequencyState(),
+            custom: serializeCustomState(),
+            savedAt: new Date().toISOString(),
+        };
+    }
+
+    function showTab(tab, btn) {
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        document.querySelectorAll('.nav-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('view-' + tab).classList.add('active');
+        const tabBtn = btn || document.querySelector(`.nav-tabs .tab-btn[data-tab="${tab}"]`);
+        if (tabBtn) {
+            tabBtn.classList.add('active');
+        }
+    }
+
+    function saveConfig() {
+        keywordMap = parseKeywordDefs(document.getElementById('keyword-defs').value);
+        templates = parseTemplates(document.getElementById('list-templates').value);
+        currentTemplateCategory = CATEGORY_ALL;
+        lastTemplateIndex = null;
+        const customTextArea = document.getElementById('custom-param-defs');
+        const customDefs = parseCustomParamDefs(customTextArea ? customTextArea.value : '');
+        applyCustomDefinitions(customDefs);
+        refreshTemplateSelectors();
+        handleTemplateChange();
+        showTab('op');
+    }
+
+    function saveSession() {
+        const nameInput = document.getElementById('session-name');
+        const sessionName = (nameInput ? nameInput.value : '').trim();
+        if (!sessionName) {
+            setSessionStatus('Enter a session name before saving', true);
+            if (nameInput) {
+                nameInput.focus();
+            }
+            return;
+        }
+        try {
+            const payload = collectSessionPayload(sessionName);
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            const slug = sanitizeFileName(sessionName);
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            link.href = url;
+            link.download = `${slug}_${timestamp}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            setSessionStatus(`Session "${sessionName}" saved to JSON`);
+        } catch (err) {
+            console.error('Failed to save session', err);
+            setSessionStatus('Save failed', true);
+        }
+    }
+
+    function loadSession() {
+        const fileInput = document.getElementById('session-file');
+        if (!fileInput) {
+            setSessionStatus('File input not found', true);
+            return;
+        }
+        fileInput.value = '';
+        fileInput.click();
+    }
+
+    function handleSessionFile(event) {
+        const file = event.target.files && event.target.files[0];
+        if (!file) {
+            setSessionStatus('No file selected', true);
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = JSON.parse(e.target.result);
+                applySessionData(data);
+                const displayName = data.name || file.name;
+                setSessionStatus(`Loaded session from ${displayName}`);
+            } catch (err) {
+                console.error('Failed to load session JSON', err);
+                setSessionStatus('Invalid session file', true);
+            } finally {
+                event.target.value = '';
+            }
+        };
+        reader.onerror = () => {
+            console.error('File read error', reader.error);
+            setSessionStatus('Could not read file', true);
+            event.target.value = '';
+        };
+        reader.readAsText(file);
+    }
+
+    function applySessionData(data) {
+        if (!data || typeof data !== 'object') {
+            throw new Error('Session file missing content');
+        }
+        document.getElementById('keyword-defs').value = typeof data.keywordDefs === 'string' ? data.keywordDefs : '';
+        document.getElementById('list-templates').value = typeof data.templatesRaw === 'string' ? data.templatesRaw : '';
+        const customParamInput = document.getElementById('custom-param-defs');
+        if (customParamInput) {
+            customParamInput.value = typeof data.customDefsRaw === 'string' ? data.customDefsRaw : customParamInput.value;
+        }
+        phraseLog = Array.isArray(data.log)
+            ? data.log.map(normalizeLogEntry).filter(Boolean)
+            : [];
+        if (data.name && document.getElementById('session-name')) {
+            document.getElementById('session-name').value = data.name;
+        }
+        restoreFrequencyState(data.frequency);
+        resetCurrentValues();
+        saveConfig();
+        restoreCustomState(data.custom);
+        renderLog();
+    }
+
+    function parseKeywordDefs(raw) {
+        const map = {};
+        raw.split('\n').forEach(line => {
+            if (!line.trim()) return;
+            const parts = line.split(':');
+            if (!parts.length) return;
+            const key = parts.shift().trim().toUpperCase();
+            if (!key) return;
+            const values = parts.join(':')
+                .split(',')
+                .map(v => v.trim())
+                .filter(Boolean);
+            map[key] = values;
+        });
+        return map;
+    }
+
+    function parseTemplates(raw) {
+        return raw
+            .split('\n')
+            .map(line => line.trim())
+            .filter(Boolean)
+            .map(line => {
+                let category = DEFAULT_TEMPLATE_CATEGORY;
+                let text = line;
+                const separatorIdx = line.indexOf('|');
+                if (separatorIdx > -1) {
+                    const potentialCategory = line.slice(0, separatorIdx).trim();
+                    const remainder = line.slice(separatorIdx + 1).trim();
+                    if (remainder) {
+                        category = potentialCategory || DEFAULT_TEMPLATE_CATEGORY;
+                        text = remainder;
+                    } else {
+                        text = line;
+                    }
+                }
+                if (!text) {
+                    return null;
+                }
+                return { category, text };
+            })
+            .filter(Boolean);
+    }
+
+    function getFilteredTemplateEntries() {
+        return templates
+            .map((tpl, idx) => ({ ...tpl, idx }))
+            .filter(item => currentTemplateCategory === CATEGORY_ALL || item.category === currentTemplateCategory);
+    }
+
+    function buildTemplateCategoryList() {
+        const categorySet = new Set();
+        templates.forEach(tpl => {
+            categorySet.add(tpl.category || DEFAULT_TEMPLATE_CATEGORY);
+        });
+        templateCategories = Array.from(categorySet).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    }
+
+    function populateCategoryDropdown() {
+        const select = document.getElementById('template-category');
+        if (!select) {
+            return;
+        }
+        const previous = currentTemplateCategory;
+        select.innerHTML = '';
+        const allOption = document.createElement('option');
+        allOption.value = CATEGORY_ALL;
+        allOption.textContent = 'All Categories';
+        select.appendChild(allOption);
+        templateCategories.forEach(category => {
+            const opt = document.createElement('option');
+            opt.value = category;
+            opt.textContent = category;
+            select.appendChild(opt);
+        });
+        const hasPrevious = previous === CATEGORY_ALL || templateCategories.includes(previous);
+        const nextValue = hasPrevious ? previous : CATEGORY_ALL;
+        currentTemplateCategory = nextValue;
+        select.value = nextValue;
+        select.disabled = !templates.length;
+    }
+
+    function populateTemplateDropdown() {
+        const select = document.getElementById('op-template');
+        if (!select) {
+            return;
+        }
+        const filtered = getFilteredTemplateEntries();
+        select.innerHTML = '';
+        if (!filtered.length) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = templates.length ? 'No templates in this category' : 'Add a template to begin';
+            select.appendChild(opt);
+            select.disabled = true;
+            lastTemplateIndex = null;
+            select.value = '';
+            return;
+        }
+        select.disabled = false;
+        filtered.forEach(item => {
+            const opt = document.createElement('option');
+            opt.value = item.idx;
+            const catLabel = item.category || DEFAULT_TEMPLATE_CATEGORY;
+            const trimmed = item.text.length > 80 ? `${item.text.slice(0, 77)}...` : item.text;
+            opt.textContent = currentTemplateCategory === CATEGORY_ALL ? `${catLabel} • ${trimmed}` : trimmed;
+            select.appendChild(opt);
+        });
+        const match = filtered.some(item => item.idx === lastTemplateIndex);
+        const resolvedIndex = match ? lastTemplateIndex : filtered[0].idx;
+        select.value = String(resolvedIndex);
+    }
+
+    function refreshTemplateSelectors() {
+        buildTemplateCategoryList();
+        populateCategoryDropdown();
+        populateTemplateDropdown();
+    }
+
+    function hasTemplatesForCurrentCategory() {
+        if (!templates.length) {
+            return false;
+        }
+        if (currentTemplateCategory === CATEGORY_ALL) {
+            return templates.length > 0;
+        }
+        return templates.some(tpl => tpl.category === currentTemplateCategory);
+    }
+
+    function getNoTemplateMessage() {
+        if (!templates.length) {
+            return 'Add a template in the configuration tab to get started.';
+        }
+        if (!hasTemplatesForCurrentCategory()) {
+            return 'No templates in this category. Choose another category or add more templates in Configuration mode.';
+        }
+        return 'Select a template to start configuring values.';
+    }
+
+    function handleCategoryChange() {
+        const select = document.getElementById('template-category');
+        if (!select) {
+            return;
+        }
+        const value = select.value;
+        currentTemplateCategory = value === CATEGORY_ALL || !value ? CATEGORY_ALL : value;
+        populateTemplateDropdown();
+        handleTemplateChange();
+    }
+
+    function handleTemplateChange() {
+        const select = document.getElementById('op-template');
+        if (select && !select.disabled) {
+            const idx = parseInt(select.value, 10);
+            lastTemplateIndex = Number.isNaN(idx) ? null : idx;
+        } else {
+            lastTemplateIndex = null;
+        }
+        renderDynamicInputs();
+        generate();
+    }
+
+    function getSelectedTemplate() {
+        const select = document.getElementById('op-template');
+        if (!select || select.disabled) {
+            return '';
+        }
+        const idx = parseInt(select.value, 10);
+        const template = Number.isNaN(idx) ? null : templates[idx];
+        return template ? template.text : '';
+    }
+
+    function renderDynamicInputs() {
+        const container = document.getElementById('dynamic-inputs');
+        container.innerHTML = '';
+        const template = getSelectedTemplate();
+
+        if (!template) {
+            container.innerHTML = `<p class="hint">${getNoTemplateMessage()}</p>`;
+            return;
+        }
+
+        const placeholders = extractPlaceholders(template);
+
+        if (!placeholders.length) {
+            container.innerHTML = '<p class="hint">No [KEYWORDS] detected in this template.</p>';
+            return;
+        }
+
+        const manualKeys = placeholders.filter(key => !isReservedPlaceholder(key));
+
+        if (!manualKeys.length) {
+            container.innerHTML = '<p class="hint">All placeholders in this template are auto-filled.</p>';
+            return;
+        }
+
+        manualKeys.forEach(key => {
+            const group = document.createElement('div');
+            group.className = 'input-group';
+
+            const label = document.createElement('label');
+            label.textContent = `${key} Value`;
+            group.appendChild(label);
+
+            const options = keywordMap[key] || [];
+            const storedValue = currentValues[key];
+            if (options.length) {
+                const select = document.createElement('select');
+                options.forEach(optionValue => {
+                    const opt = document.createElement('option');
+                    opt.value = optionValue;
+                    opt.textContent = optionValue;
+                    select.appendChild(opt);
+                });
+                select.value = storedValue && options.includes(storedValue) ? storedValue : options[0];
+                currentValues[key] = select.value;
+                select.addEventListener('change', (e) => {
+                    currentValues[key] = e.target.value;
+                    generate();
+                });
+                group.appendChild(select);
+            } else {
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.placeholder = `Enter ${key.toLowerCase()}...`;
+                input.value = storedValue || '';
+                currentValues[key] = input.value;
+                input.addEventListener('input', (e) => {
+                    currentValues[key] = e.target.value;
+                    generate();
+                });
+                group.appendChild(input);
+            }
+
+            container.appendChild(group);
+        });
+    }
+
+    function extractPlaceholders(template) {
+        const matches = new Set();
+        let match;
+        while ((match = placeholderRegex.exec(template)) !== null) {
+            matches.add(match[1].toUpperCase());
+        }
+        placeholderRegex.lastIndex = 0;
+        return Array.from(matches);
+    }
+
+    function generate() {
+        const template = getSelectedTemplate();
+        if (!template) {
+            document.getElementById('output-box').innerText = getNoTemplateMessage();
+            return;
+        }
+
+        const placeholders = extractPlaceholders(template);
+        let result = template;
+        placeholders.forEach(key => {
+            const value = getPlaceholderValue(key).trim();
+            const safeValue = value || '_____';
+            const regex = new RegExp(`\\[${key}\\]`, 'gi');
+            result = result.replace(regex, safeValue);
+        });
+        document.getElementById('output-box').innerText = result;
+    }
+
+    function appendToLog(text) {
+        const clean = (text || '').trim();
+        if (!clean) return;
+        const entry = {
+            text: clean,
+            timestamp: new Date().toISOString(),
+        };
+        phraseLog.unshift(entry);
+        renderLog();
+    }
+
+    function resetCurrentValues() {
+        Object.keys(currentValues).forEach(key => delete currentValues[key]);
+    }
+
+    function normalizeLogEntry(entry) {
+        if (!entry) return null;
+        if (typeof entry === 'string') {
+            return {
+                text: entry,
+                timestamp: new Date().toISOString(),
+            };
+        }
+        const text = (entry.text || '').trim();
+        if (!text) return null;
+        return {
+            text,
+            timestamp: entry.timestamp || new Date().toISOString(),
+        };
+    }
+
+    function renderLog() {
+        const list = document.getElementById('phrase-log');
+        const emptyState = document.getElementById('log-empty');
+        if (!list || !emptyState) return;
+        list.innerHTML = '';
+        if (!phraseLog.length) {
+            emptyState.style.display = 'block';
+            return;
+        }
+        emptyState.style.display = 'none';
+        phraseLog.forEach(entry => {
+            const li = document.createElement('li');
+            li.textContent = `[${formatTimestamp(entry.timestamp)}] ${entry.text}`;
+            list.appendChild(li);
+        });
+    }
+
+    function formatTimestamp(isoString) {
+        if (!isoString) {
+            return new Date().toLocaleString();
+        }
+        const date = new Date(isoString);
+        if (Number.isNaN(date.getTime())) {
+            return isoString || '';
+        }
+        return date.toLocaleString();
+    }
+
+    function exportLog() {
+        if (!phraseLog.length) {
+            setSessionStatus('No log entries to export', true);
+            return;
+        }
+        const lines = phraseLog.map(entry => `[${formatTimestamp(entry.timestamp)}] ${entry.text}`);
+        const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        link.download = `c2_phrase_log_${timestamp}.txt`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        setSessionStatus('Log exported');
+    }
+
+    function copyText() {
+        const text = document.getElementById('output-box').innerText || '';
+        appendToLog(text);
+        if (!navigator.clipboard) {
+            fallbackCopy(text);
+            return;
+        }
+        navigator.clipboard
+            .writeText(text)
+            .then(() => toggleCopyState(true))
+            .catch(() => fallbackCopy(text));
+    }
+
+    function fallbackCopy(text) {
+        const tempArea = document.createElement('textarea');
+        tempArea.value = text;
+        tempArea.style.position = 'fixed';
+        tempArea.style.opacity = '0';
+        document.body.appendChild(tempArea);
+        tempArea.select();
+        const success = document.execCommand('copy');
+        document.body.removeChild(tempArea);
+        toggleCopyState(success);
+    }
+
+    function toggleCopyState(success) {
+        const btn = document.querySelector('.copy-btn');
+        const originalText = btn.innerText;
+        btn.innerText = success ? 'COPIED!' : 'COPY FAILED';
+        setTimeout(() => btn.innerText = originalText, 1200);
+    }
+
+    initFrequencyPanel();
+    saveConfig();
+    renderLog();
+</script>
+
+</body>
+</html>
