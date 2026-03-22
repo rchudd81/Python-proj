@@ -1,0 +1,3439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>C2 Dynamic Helper</title>
+    <style>
+        :root { --bg: #1a1a1a; --card: #2d2d2d; --text: #e0e0e0; --accent: #007bff; --success: #28a745; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); padding: 20px; }
+        .container { width: 100%; max-width: none; margin: 0; background: var(--card); padding: 25px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); box-sizing: border-box; }
+        .top-strip { position: sticky; top: 0; z-index: 1200; background: var(--card); display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 10px 0 12px; margin-bottom: 14px; border-bottom: 1px solid #444; }
+        .clock-panel { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+        .clock-title { color: #f28b8b; font-size: 0.8em; letter-spacing: 0.1em; text-transform: uppercase; }
+        .clock-value { font-family: Consolas, 'Courier New', monospace; font-size: 1.22em; color: #ff3b3b; font-weight: 700; text-align: right; line-height: 1.25; }
+        .clock-zone-static { color: #ff3b3b; }
+        .clock-separator { color: #ff7a7a; margin: 0 4px; }
+        .clock-zone-btn { background: transparent; color: #ff3b3b; border: 1px solid transparent; border-radius: 4px; padding: 2px 6px; font: inherit; cursor: pointer; }
+        .clock-zone-btn:hover, .clock-zone-btn.active { border-color: #a94444; background: rgba(255, 59, 59, 0.12); }
+        .clock-config { display: flex; align-items: center; gap: 8px; }
+        .clock-config.hidden { display: none; }
+        .clock-config input { width: auto; min-width: 70px; padding: 5px 7px; font-size: 0.78em; }
+        .clock-config .tz-label-input { min-width: 56px; text-transform: uppercase; }
+        .clock-config .tz-offset-input { min-width: 72px; }
+        .nav-tabs { display: flex; gap: 10px; margin: 0; border: none; padding: 0; flex-wrap: wrap; }
+        .tab-btn { background: #444; color: white; border: none; padding: 10px 20px; cursor: pointer; border-radius: 4px; }
+        .tab-btn.active { background: var(--accent); }
+        .view { display: none; }
+        .view.active { display: block; }
+        .session-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 15px; }
+        .session-btn { background: #555; color: white; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-size: 0.9em; }
+        .session-btn:active { transform: translateY(1px); }
+        .session-status { font-size: 0.8em; color: #bbb; min-height: 1em; }
+        .session-controls input[type="text"] { flex: 1 1 200px; min-width: 160px; padding: 8px; background: #3d3d3d; border: 1px solid #555; color: white; border-radius: 4px; box-sizing: border-box; }
+        .side-session-controls { display: flex; flex-direction: column; align-items: stretch; gap: 8px; margin-top: 12px; }
+        .side-session-controls .session-controls { margin: 0; display: grid; grid-template-columns: 1fr; gap: 8px; }
+        .side-session-controls .session-controls input[type="text"] { min-width: 0; width: 100%; flex: 1 1 auto; }
+        .side-session-controls .session-btn { width: 100%; }
+        
+        .config-section { margin-bottom: 20px; border: 1px solid #444; padding: 15px; border-radius: 5px; }
+        textarea { width: 100%; height: 80px; background: #111; color: #00ff00; border: 1px solid #555; font-family: monospace; padding: 10px; box-sizing: border-box; }
+        .input-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; color: #aaa; font-size: 0.9em; }
+        select, input { width: 100%; padding: 10px; background: #3d3d3d; border: 1px solid #555; color: white; border-radius: 4px; box-sizing: border-box; }
+        
+        #output-box { background: #000; color: #00ff00; padding: 20px; border: 2px solid var(--accent); border-radius: 5px; font-size: 1.2em; min-height: 50px; margin: 20px 0; display: flex; align-items: center; justify-content: center; text-align: center; }
+        .copy-btn { background: var(--success); color: white; width: 100%; padding: 15px; font-size: 1.1em; font-weight: bold; border: none; cursor: pointer; border-radius: 4px; }
+        .copy-btn:active { transform: translateY(2px); }
+        .hint { font-size: 0.8em; color: #888; margin-top: 5px; }
+        .log-section { border: 1px solid #444; border-radius: 5px; padding: 15px; background: #1d1d1d; }
+        .log-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-weight: bold; }
+        .log-actions { display: flex; gap: 8px; }
+        .small-btn { background: #666; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8em; }
+        .small-btn:active { transform: translateY(1px); }
+        .log-list { max-height: 200px; overflow-y: auto; padding-left: 18px; margin: 0; }
+        .log-list li { margin-bottom: 6px; font-size: 0.9em; color: #c0ffc0; }
+        .frequency-panel { border: 1px solid #444; border-radius: 6px; padding: 15px; margin-bottom: 20px; background: #222; }
+        .frequency-panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .frequency-panel h3 { margin: 0; font-size: 1.1em; }
+        .frequency-controls { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; }
+        .frequency-control { flex: 1 1 160px; }
+        .frequency-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+        .frequency-field label { font-size: 0.85em; color: #ccc; margin-bottom: 4px; display: block; }
+        .frequency-field input, .frequency-control select { width: 100%; padding: 8px; background: #3d3d3d; border: 1px solid #555; color: white; border-radius: 4px; }
+        .frequency-field input:focus, .frequency-control select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0,123,255,0.2); }
+        .frequency-hint { font-size: 0.75em; color: #888; margin: 0; }
+        .custom-panel { border: 1px solid #444; border-radius: 6px; padding: 15px; margin-bottom: 20px; background: #242424; }
+        .custom-panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .custom-panel h3 { margin: 0; font-size: 1.05em; }
+        .custom-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+        .custom-field label { font-size: 0.85em; color: #ccc; margin-bottom: 4px; display: block; }
+        .custom-field input { width: 100%; padding: 8px; background: #3d3d3d; border: 1px solid #555; color: white; border-radius: 4px; }
+        .custom-field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0,123,255,0.2); }
+        .workspace-layout { display: flex; flex-wrap: nowrap; align-items: stretch; gap: 0; min-height: 0; }
+        .side-frame { flex: 0 0 320px; max-width: 60vw; min-width: 280px; display: flex; flex-direction: column; gap: 20px; max-height: calc(100vh - 180px); overflow-y: auto; padding-right: 10px; box-sizing: border-box; }
+        .main-frame { flex: 1 1 360px; min-width: 320px; display: flex; flex-direction: column; padding-left: 10px; box-sizing: border-box; }
+        .main-tabs { display: flex; gap: 10px; margin-bottom: 15px; border-bottom: 1px solid #444; padding-bottom: 10px; }
+        .main-tab-btn { background: #444; color: white; border: none; padding: 8px 14px; cursor: pointer; border-radius: 4px; }
+        .main-tab-btn.active { background: var(--accent); }
+        .main-tab-view { display: none; }
+        .main-tab-view.active { display: block; }
+        .signal-library-main { border: 1px solid #444; border-radius: 6px; padding: 15px; background: #1d1d1d; }
+        .engagement-library-main { border: 1px solid #444; border-radius: 6px; padding: 15px; background: #1d1d1d; }
+        .status-dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+        .status-template-panel { margin-bottom: 12px; }
+        .status-template-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin-bottom: 8px; }
+        .status-template-controls label { margin-bottom: 3px; }
+        .status-template-controls select { padding: 8px; }
+        .status-board-card { border: 1px solid #444; border-radius: 6px; padding: 12px; background: #1f1f1f; }
+        .status-board-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .status-board-controls { display: flex; align-items: center; gap: 6px; }
+        .status-overall-label { font-size: 0.76em; color: #b8b8b8; text-transform: uppercase; letter-spacing: 0.05em; }
+        .status-overall-select { width: auto; min-width: 90px; padding: 6px 8px; font-size: 0.78em; }
+        .status-board-title { margin: 0; font-size: 1.02em; }
+        .status-add-btn { width: 28px; height: 28px; border-radius: 50%; padding: 0; font-size: 1.2em; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+        .status-add-form.hidden { display: none; }
+        .status-add-form { border: 1px solid #3f3f3f; border-radius: 5px; padding: 10px; background: #181818; margin-bottom: 10px; display: grid; gap: 8px; }
+        .status-add-form textarea { height: 64px; background: #2b2b2b; color: #e5e5e5; border: 1px solid #555; }
+        .status-list { display: flex; flex-direction: column; gap: 8px; }
+        .status-item { border: 1px solid #3a3a3a; border-radius: 5px; padding: 10px; background: #2a2a2a; }
+        .status-item-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
+        .status-title-wrap { display: flex; align-items: center; gap: 8px; min-width: 0; }
+        .status-item-title { font-weight: 600; color: #f5f5f5; word-break: break-word; }
+        .status-item-notes { font-size: 0.84em; color: #d4d4d4; white-space: pre-wrap; margin-bottom: 6px; }
+        .status-item-footer { font-size: 0.75em; color: #9f9f9f; text-transform: uppercase; letter-spacing: 0.05em; }
+        .status-item-edit { display: grid; gap: 6px; margin-bottom: 6px; }
+        .status-item-input, .status-item-select { width: 100%; padding: 7px 8px; background: #3d3d3d; border: 1px solid #555; color: white; border-radius: 4px; box-sizing: border-box; font-size: 0.84em; }
+        .status-item-notes-input { width: 100%; min-height: 58px; padding: 7px 8px; background: #3d3d3d; border: 1px solid #555; color: white; border-radius: 4px; box-sizing: border-box; font-size: 0.84em; resize: vertical; }
+        .status-item-input:focus, .status-item-select:focus, .status-item-notes-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0,123,255,0.2); }
+        .status-indicator { width: 10px; height: 10px; border-radius: 50%; display: inline-block; border: 1px solid rgba(255,255,255,0.22); }
+        .status-green { background: #26b36a; }
+        .status-amber { background: #f5a623; }
+        .status-red { background: #dc4d4d; }
+        .engagement-message-panel { border: 1px solid #3f3f3f; border-radius: 6px; padding: 10px; background: #171717; margin-bottom: 12px; }
+        .engagement-message-box { background: #0f0f0f; color: #dfffe0; border: 1px solid #3a3a3a; border-radius: 4px; padding: 12px; min-height: 48px; white-space: pre-wrap; line-height: 1.35; }
+        .engagement-copy-btn { margin-top: 8px; padding: 10px; font-size: 0.9em; }
+        .timeline-section { border: 1px solid #3f3f3f; border-radius: 6px; padding: 10px; background: #171717; margin-bottom: 12px; }
+        .timeline-controls { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
+        .timeline-window-select { width: auto; min-width: 110px; padding: 6px 8px; font-size: 0.8em; }
+        .timeline-axis { display: grid; grid-template-columns: 110px 1fr; align-items: end; gap: 8px; margin-bottom: 8px; }
+        .timeline-axis-label { font-size: 0.75em; color: #9a9a9a; letter-spacing: 0.05em; text-transform: uppercase; }
+        .timeline-axis-track { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0; font-size: 0.7em; color: #8f8f8f; }
+        .timeline-axis-track span { text-align: center; }
+        .timeline-list { display: flex; flex-direction: column; gap: 8px; }
+        .timeline-row { display: grid; grid-template-columns: 110px 1fr; align-items: center; gap: 8px; }
+        .timeline-row-label { font-size: 0.8em; color: #ddd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .timeline-row-track { position: relative; height: 18px; border: 1px solid #3a3a3a; border-radius: 4px; background: linear-gradient(to right, #222 0%, #222 100%); overflow: hidden; }
+        .timeline-row-track::before { content: ''; position: absolute; inset: 0; background-image: linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px); background-size: calc(100% / 12) 100%; }
+        .timeline-bar { position: absolute; top: 1px; height: calc(100% - 2px); border-radius: 3px; font-size: 0.68em; display: flex; align-items: center; justify-content: center; overflow: hidden; white-space: nowrap; color: #fff; padding: 0 4px; box-sizing: border-box; }
+        .timeline-bar.tasked { background: #8a6d1f; }
+        .timeline-bar.ready { background: #1f4f8a; }
+        .timeline-bar.requested { background: #6a4c9b; }
+        .timeline-bar.approved { background: #2f6f9b; }
+        .timeline-bar.active { background: #1f7f43; }
+        .timeline-bar.inactive { background: #7a3b3b; }
+        .side-resizer { flex: 0 0 10px; cursor: col-resize; position: relative; user-select: none; }
+        .side-resizer::before { content: ''; position: absolute; left: 4px; top: 0; bottom: 0; width: 2px; background: #4c4c4c; border-radius: 2px; }
+        .side-resizer:hover::before { background: var(--accent); }
+        body.resizing-side, body.resizing-side * { cursor: col-resize !important; user-select: none !important; }
+        @media (max-width: 960px) {
+            .top-strip { position: static; flex-direction: column; align-items: stretch; }
+            .clock-panel { align-items: flex-start; }
+            .clock-value { text-align: left; }
+            .clock-config { justify-content: flex-start; }
+            .workspace-layout { flex-wrap: wrap; }
+            .side-frame, .main-frame { flex: 1 1 100%; max-width: 100%; max-height: none; overflow: visible; padding: 0; }
+            .side-resizer { display: none; }
+        }
+        .panel-actions { display: flex; gap: 8px; align-items: center; }
+        .collapse-toggle { background: transparent; color: #ccc; border: 1px solid #555; width: 28px; height: 28px; border-radius: 4px; cursor: pointer; font-size: 1em; line-height: 1; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+        .collapse-toggle:active { transform: translateY(1px); }
+        .panel-body.collapsed { display: none; }
+        .signals-panel { border: 1px solid #444; border-radius: 6px; padding: 15px; margin-bottom: 20px; background: #232323; }
+        .signals-panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .signals-panel h3 { margin: 0; font-size: 1.05em; }
+        .signal-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 12px; }
+        .signal-field label { font-size: 0.8em; color: #bbb; margin-bottom: 4px; display: block; }
+        .signal-field input, .signal-field select { width: 100%; padding: 8px; background: #3d3d3d; border: 1px solid #555; color: white; border-radius: 4px; box-sizing: border-box; }
+        .signal-field input:focus, .signal-field select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0,123,255,0.2); }
+        .signal-bw-field { display: flex; flex-direction: column; }
+        .signal-checkbox { display: flex; align-items: center; gap: 8px; font-size: 0.85em; color: #ddd; margin-bottom: 6px; }
+        .signal-checkbox input { width: auto; }
+        .signal-add-btn { grid-column: span 1; align-self: end; background: var(--accent); color: white; border: none; padding: 10px; border-radius: 4px; cursor: pointer; font-weight: 600; }
+        .signal-add-btn:active { transform: translateY(1px); }
+        .signals-list { display: flex; flex-direction: column; gap: 10px; }
+        .signal-card { border: 1px solid #444; border-radius: 6px; padding: 12px; background: #1f1f1f; }
+        .signal-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-weight: 600; }
+        .signal-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+        .signal-grid-item { background: #2a2a2a; border-radius: 4px; padding: 8px; border: 1px solid #3a3a3a; }
+        .signal-label { font-size: 0.75em; color: #aaa; letter-spacing: 0.06em; display: block; margin-bottom: 4px; }
+        .signal-value { font-size: 0.95em; color: #f5f5f5; }
+        .engagement-panel { border: 1px solid #444; border-radius: 6px; padding: 15px; margin-bottom: 20px; background: #252525; }
+        .engagement-panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .engagement-panel h3 { margin: 0; font-size: 1.05em; }
+        .engagement-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 12px; }
+        .engagement-field label { font-size: 0.8em; color: #bbb; margin-bottom: 4px; display: block; }
+        .engagement-field input, .engagement-field select { width: 100%; padding: 8px; background: #3d3d3d; border: 1px solid #555; color: white; border-radius: 4px; box-sizing: border-box; }
+        .engagement-field input:focus, .engagement-field select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0,123,255,0.2); }
+        .engagement-probe-toggle { display: flex; align-items: center; gap: 8px; font-size: 0.85em; color: #ddd; margin-top: 24px; }
+        .engagement-probe-toggle input { width: auto; }
+        .engagement-probe-type.hidden { display: none; }
+        .engagement-add-btn { align-self: end; background: var(--accent); color: white; border: none; padding: 10px; border-radius: 4px; cursor: pointer; font-weight: 600; }
+        .engagement-add-btn:active { transform: translateY(1px); }
+        .engagement-list { display: flex; flex-direction: column; gap: 10px; }
+        .engagement-card { border: 1px solid #444; border-radius: 6px; padding: 12px; background: #1f1f1f; }
+        .engagement-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-weight: 600; }
+        .engagement-actions { display: flex; align-items: center; gap: 10px; }
+        .engagement-status-select { width: auto; min-width: 110px; padding: 6px 8px; font-size: 0.8em; }
+        .engagement-card-input { width: 100%; padding: 6px 8px; font-size: 0.85em; background: #3d3d3d; border: 1px solid #555; color: white; border-radius: 4px; box-sizing: border-box; }
+        .engagement-template-select { width: 100%; padding: 6px 8px; font-size: 0.82em; background: #3d3d3d; border: 1px solid #555; color: white; border-radius: 4px; box-sizing: border-box; }
+        .engagement-template-preview { margin-top: 6px; font-size: 0.78em; color: #cfcfcf; line-height: 1.35; white-space: normal; }
+        .engagement-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+        .engagement-item { background: #2a2a2a; border-radius: 4px; padding: 8px; border: 1px solid #3a3a3a; }
+        .engagement-label { font-size: 0.75em; color: #aaa; letter-spacing: 0.06em; display: block; margin-bottom: 4px; }
+        .engagement-value { font-size: 0.95em; color: #f5f5f5; }
+        .preview-btn { background: #ff9800; color: #1a1a1a; width: 100%; padding: 12px; font-size: 1em; font-weight: 600; border: none; border-radius: 4px; cursor: pointer; margin-top: 10px; }
+        .preview-btn:active { transform: translateY(1px); }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: none; align-items: center; justify-content: center; z-index: 999; padding: 20px; }
+        .modal-overlay.open { display: flex; }
+        .modal { background: #2b2b2b; border-radius: 8px; width: min(900px, 100%); max-height: 80vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,0.6); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #444; }
+        .modal-body { padding: 0 20px 20px; overflow-y: auto; }
+        .phrase-list { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+        .phrase-item { text-align: left; padding: 12px 14px; border: 1px solid #444; border-radius: 6px; background: #1f1f1f; color: #f5f5f5; cursor: pointer; transition: border-color 0.2s, transform 0.1s; }
+        .phrase-item:hover { border-color: var(--accent); }
+        .phrase-item:active { transform: scale(0.99); }
+        .phrase-item-success { border-color: var(--success) !important; }
+        .phrase-item-fail { border-color: #ff4d4d !important; }
+        .phrase-category { font-size: 0.8em; color: #aaa; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+        .phrase-text { white-space: pre-wrap; line-height: 1.4; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="top-strip">
+        <div class="nav-tabs">
+            <button class="tab-btn active" data-tab="op" onclick="showTab('op', this)">Operational Mode</button>
+            <button class="tab-btn" data-tab="config" onclick="showTab('config', this)">Configuration Mode</button>
+        </div>
+        <div class="clock-panel">
+            <span class="clock-title">System Clock</span>
+            <span id="top-clock" class="clock-value">
+                <span id="clock-zulu" class="clock-zone-static">ZULU --:--:--</span>
+                <span class="clock-separator">|</span>
+                <button id="clock-zone-tz2" class="clock-zone-btn" type="button" onclick="openClockConfig('tz2')">TZ2 --:--:--</button>
+                <span class="clock-separator">|</span>
+                <button id="clock-zone-tz3" class="clock-zone-btn" type="button" onclick="openClockConfig('tz3')">TZ3 --:--:--</button>
+            </span>
+            <div id="clock-config-panel" class="clock-config hidden">
+                <input id="clock-config-label" class="tz-label-input" type="text" maxlength="8" title="Timezone label">
+                <input id="clock-config-offset" class="tz-offset-input" type="number" step="0.5" title="UTC offset hours">
+                <button class="small-btn" type="button" onclick="closeClockConfig()">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="view-config" class="view">
+        <h3>1. Define Keywords</h3>
+        <p class="hint">One keyword per line formatted as KEYWORD: item1, item2. Leave the right side blank for free-text entry.</p>
+        <div class="config-section">
+            <textarea id="keyword-defs">CREW: REAPER 1-1, SABER 2-4, GHOST 5-1
+CODE: ENGAGED, SMACK, CEASE FIRE, WINCHESTER
+TARGET:</textarea>
+        </div>
+
+        <h3>2. Define Phrase Templates</h3>
+        <p class="hint">Use bracketed keywords like [CREW], [CODE], [TARGET]. Prefix a template with <code>CATEGORY|</code> to group it (e.g., REPORTS|[CREW], STATUS?).</p>
+        <div class="config-section">
+            <textarea id="list-templates">CONTACT|[CREW], THIS IS BASE, [CODE] TARGET [TARGET]. ACKNOWLEDGE.
+CONTACT|ALL STATIONS, THIS IS BASE. [CREW] IS NOW [CODE].
+REPORT|[CREW], REPORT STATUS OF [TARGET].</textarea>
+        </div>
+
+        <h3>3. Additional Parameters</h3>
+        <p class="hint">One per line: PLACEHOLDER|Label|type|default. Example: EIRP|EIRP (dBW)|number|45</p>
+        <div class="config-section">
+            <textarea id="custom-param-defs">EIRP|EIRP (dBW)|number|45
+EEEIRP|EEEIRP (dBW)|number|45
+START|Start Time|text|1200Z
+STOP|Stop Time|text|1230Z</textarea>
+        </div>
+        <button class="tab-btn active" style="width:100%" onclick="saveConfig()">Apply Configuration</button>
+    </div>
+
+    <div id="view-op" class="view active">
+        <div class="workspace-layout">
+            <div class="side-frame">
+                <div class="frequency-panel">
+            <div class="frequency-panel-header">
+                <div>
+                    <h3>Frequency Planner</h3>
+                    <p class="frequency-hint">Edit any value to auto-fill placeholders like [IF-DL], [RF-UL], and [TTF].</p>
+                </div>
+                <div class="panel-actions">
+                    <button class="small-btn" type="button" onclick="resetFrequencyDefaults()">Reset</button>
+                    <button class="collapse-toggle" type="button" data-target="frequency-panel-body" aria-expanded="false" onclick="togglePanel(this)">></button>
+                </div>
+            </div>
+            <div id="frequency-panel-body" class="panel-body collapsed">
+                <div class="frequency-controls">
+                    <div class="frequency-control">
+                        <label for="freq-band">RF Band</label>
+                        <select id="freq-band"></select>
+                    </div>
+                    <div class="frequency-control">
+                        <label for="freq-lo-preset">LO Preset</label>
+                        <select id="freq-lo-preset"></select>
+                    </div>
+                </div>
+                <div class="frequency-grid">
+                    <div class="frequency-field">
+                        <label for="freq-if-dl">IF-DL (MHz)</label>
+                        <input type="number" id="freq-if-dl" step="0.001">
+                    </div>
+                    <div class="frequency-field">
+                        <label for="freq-dl-lo">DL-LO (MHz)</label>
+                        <input type="number" id="freq-dl-lo" step="0.001">
+                    </div>
+                    <div class="frequency-field">
+                        <label for="freq-rf-dl">RF-DL (MHz)</label>
+                        <input type="number" id="freq-rf-dl" step="0.001">
+                    </div>
+                    <div class="frequency-field">
+                        <label for="freq-ttf">TTF (MHz)</label>
+                        <input type="number" id="freq-ttf" step="0.001">
+                    </div>
+                    <div class="frequency-field">
+                        <label for="freq-rf-ul">RF-UL (MHz)</label>
+                        <input type="number" id="freq-rf-ul" step="0.001">
+                    </div>
+                    <div class="frequency-field">
+                        <label for="freq-ul-lo">UL-LO (MHz)</label>
+                        <input type="number" id="freq-ul-lo" step="0.001">
+                    </div>
+                    <div class="frequency-field">
+                        <label for="freq-if-ul">IF-UL (MHz)</label>
+                        <input type="number" id="freq-if-ul" step="0.001">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="signals-panel">
+            <div class="signals-panel-header">
+                <div>
+                    <h3>Signal Library</h3>
+                    <p class="frequency-hint">Add named signals and we will auto-fill [SIGNAL] plus related frequencies.</p>
+                </div>
+                <div class="panel-actions">
+                    <button class="small-btn" type="button" onclick="clearSignals()">Clear Signals</button>
+                    <button class="collapse-toggle" type="button" data-target="signals-panel-body" aria-expanded="false" onclick="togglePanel(this)">></button>
+                </div>
+            </div>
+            <div id="signals-panel-body" class="panel-body collapsed">
+                <div class="signal-form">
+                    <div class="signal-field">
+                        <label for="signal-name">Signal Name</label>
+                        <input id="signal-name" type="text" placeholder="e.g., LINK-1">
+                    </div>
+                    <div class="signal-field">
+                        <label for="signal-anchor">Known Value</label>
+                        <select id="signal-anchor">
+                            <option value="ifDL">IF-DL</option>
+                            <option value="rfDL">RF-DL</option>
+                            <option value="rfUL">RF-UL</option>
+                            <option value="ifUL">IF-UL</option>
+                        </select>
+                    </div>
+                    <div class="signal-field">
+                        <label for="signal-value">Frequency (MHz)</label>
+                        <input id="signal-value" type="number" step="0.001" placeholder="11750">
+                    </div>
+                    <div class="signal-field signal-bw-field">
+                        <label class="signal-checkbox">
+                            <input id="signal-bw-enabled" type="checkbox" onchange="handleSignalBandwidthToggle()">
+                            Include Bandwidth (MHz)
+                        </label>
+                        <input id="signal-bw-value" type="number" step="0.1" placeholder="e.g., 36" disabled>
+                    </div>
+                    <button class="signal-add-btn" type="button" onclick="addSignal()">Add Signal</button>
+                </div>
+                <p id="signals-side-summary" class="hint" style="margin-top:0">0 signals in library.</p>
+            </div>
+        </div>
+
+        <div class="engagement-panel">
+            <div class="engagement-panel-header">
+                <div>
+                    <h3>Engagement Planner</h3>
+                    <p class="frequency-hint">Plan engagement windows by signal, time, effect, and active status.</p>
+                </div>
+                <div class="panel-actions">
+                    <button class="small-btn" type="button" onclick="clearEngagements()">Clear Plan</button>
+                    <button class="collapse-toggle" type="button" data-target="engagement-panel-body" aria-expanded="false" onclick="togglePanel(this)">></button>
+                </div>
+            </div>
+            <div id="engagement-panel-body" class="panel-body collapsed">
+                <div class="engagement-form">
+                    <div class="engagement-field">
+                        <label for="engagement-signal">Signal</label>
+                        <select id="engagement-signal"></select>
+                    </div>
+                    <div class="engagement-field">
+                        <label for="engagement-start">Start Time</label>
+                        <input id="engagement-start" type="text" placeholder="1200Z">
+                    </div>
+                    <div class="engagement-field">
+                        <label for="engagement-stop">Stop Time</label>
+                        <input id="engagement-stop" type="text" placeholder="1230Z">
+                    </div>
+                    <div class="engagement-field">
+                        <label for="engagement-effect">Effect</label>
+                        <input id="engagement-effect" type="text" placeholder="JAM / MONITOR / TRACK">
+                    </div>
+                    <label class="engagement-probe-toggle">
+                        <input id="engagement-probe" type="checkbox" onchange="handleEngagementProbeToggle()">
+                        Probe
+                    </label>
+                    <div id="engagement-probe-type-field" class="engagement-field engagement-probe-type hidden">
+                        <label for="engagement-probe-type">Probe Type</label>
+                        <select id="engagement-probe-type">
+                            <option value="CW">CW</option>
+                            <option value="MOD">MOD</option>
+                        </select>
+                    </div>
+                    <button class="engagement-add-btn" type="button" onclick="addEngagement()">Add Engagement</button>
+                </div>
+                <p id="engagement-side-summary" class="hint" style="margin-top:0">0 engagements in plan.</p>
+            </div>
+        </div>
+
+        <div class="custom-panel">
+            <div class="custom-panel-header">
+                <div>
+                    <h3>Additional Parameters</h3>
+                    <p class="frequency-hint">Define custom placeholders in Configuration mode to edit them here.</p>
+                </div>
+                <div class="panel-actions">
+                    <button class="small-btn" type="button" onclick="resetCustomFields()">Clear</button>
+                    <button class="collapse-toggle" type="button" data-target="custom-panel-body" aria-expanded="false" onclick="togglePanel(this)">></button>
+                </div>
+            </div>
+            <div id="custom-panel-body" class="panel-body collapsed">
+                <div id="custom-parameters-container" class="custom-grid"></div>
+                <p id="custom-empty" class="hint" style="margin-top:12px; display:none">Add parameters in Configuration mode to enable this panel.</p>
+
+                <div class="side-session-controls">
+                    <div class="session-controls">
+                        <input id="session-name" type="text" placeholder="Session name">
+                        <button class="session-btn" onclick="saveSession()">Save Session JSON</button>
+                        <button class="session-btn" onclick="loadSession()">Load Session JSON</button>
+                        <input id="session-file" type="file" accept="application/json" style="display:none" onchange="handleSessionFile(event)">
+                        <span id="session-status" class="session-status"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+            </div>
+
+            <div id="side-resizer" class="side-resizer" aria-hidden="true"></div>
+
+            <div class="main-frame">
+                <div class="main-tabs">
+                    <button class="main-tab-btn active" data-main-tab="template" onclick="showMainTab('template', this)">Template Builder</button>
+                    <button class="main-tab-btn" data-main-tab="signals" onclick="showMainTab('signals', this)">Signal Library</button>
+                    <button class="main-tab-btn" data-main-tab="engagements" onclick="showMainTab('engagements', this)">Engagement Planner</button>
+                    <button class="main-tab-btn" data-main-tab="status" onclick="showMainTab('status', this)">Status</button>
+                </div>
+
+                <div id="main-tab-template" class="main-tab-view active">
+                    <div class="input-group">
+                        <label>Template Category</label>
+                        <select id="template-category" onchange="handleCategoryChange()"></select>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Select Template</label>
+                        <select id="op-template" onchange="handleTemplateChange()"></select>
+                    </div>
+
+                    <div id="dynamic-inputs"></div>
+
+                    <div id="output-box">Select options to generate phrase...</div>
+                    <button class="copy-btn" onclick="copyText()">COPY TO CHAT</button>
+                    <button class="preview-btn" type="button" onclick="openPhraseModal()">View All Phrases</button>
+
+                    <div class="log-section">
+                        <div class="log-header">
+                            <span>Phrase Log</span>
+                            <div class="log-actions">
+                                <button class="small-btn" onclick="exportLog()">Export Log</button>
+                            </div>
+                        </div>
+                        <p id="log-empty" class="hint" style="margin-top:0">No phrases copied yet.</p>
+                        <ol id="phrase-log" class="log-list"></ol>
+                    </div>
+                </div>
+
+                <div id="main-tab-signals" class="main-tab-view">
+                    <div class="signal-library-main">
+                        <p id="signals-empty-main" class="hint" style="margin-top:0">No signals stored yet.</p>
+                        <div id="signals-list-main" class="signals-list"></div>
+                    </div>
+                </div>
+
+                <div id="main-tab-engagements" class="main-tab-view">
+                    <div class="engagement-library-main">
+                        <div class="engagement-message-panel">
+                            <div id="engagement-message-box" class="engagement-message-box">Select an engagement template to preview message...</div>
+                            <button class="copy-btn engagement-copy-btn" type="button" onclick="copyEngagementMessage()">Copy Message</button>
+                        </div>
+                        <div class="timeline-section">
+                            <div class="timeline-controls">
+                                <span class="timeline-axis-label">Window</span>
+                                <select id="timeline-window-hours" class="timeline-window-select" onchange="handleTimelineWindowChange(this.value)">
+                                    <option value="12" selected>Next 12 Hours</option>
+                                    <option value="8">Next 8 Hours</option>
+                                    <option value="4">Next 4 Hours</option>
+                                    <option value="2">Next 2 Hours</option>
+                                </select>
+                            </div>
+                            <div class="timeline-axis">
+                                <span class="timeline-axis-label">Timeline (UTC)</span>
+                                <div id="engagement-timeline-axis" class="timeline-axis-track"></div>
+                            </div>
+                            <p id="engagement-timeline-empty" class="hint" style="margin-top:0">No valid time windows to draw yet.</p>
+                            <div id="engagement-timeline-list" class="timeline-list"></div>
+                        </div>
+                        <p id="engagement-empty-main" class="hint" style="margin-top:0">No engagement entries yet.</p>
+                        <div id="engagement-list-main" class="engagement-list"></div>
+                    </div>
+                </div>
+
+                <div id="main-tab-status" class="main-tab-view">
+                    <div class="engagement-message-panel status-template-panel">
+                        <div class="status-template-controls">
+                            <div>
+                                <label for="status-template-board">Status Board</label>
+                                <select id="status-template-board" onchange="handleStatusTemplateBoardChange()">
+                                    <option value="opscap">OPSCAP</option>
+                                    <option value="syscap">SYSCAP</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="status-template-item">Status Item</label>
+                                <select id="status-template-item" onchange="refreshStatusTemplateMessage()"></select>
+                            </div>
+                            <div>
+                                <label for="status-template-select">STATUS Template</label>
+                                <select id="status-template-select" onchange="refreshStatusTemplateMessage()"></select>
+                            </div>
+                        </div>
+                        <div id="status-message-box" class="engagement-message-box">Select a STATUS template to preview message...</div>
+                        <button class="copy-btn engagement-copy-btn" type="button" onclick="copyStatusMessage()">Copy Status Message</button>
+                    </div>
+
+                    <div class="status-dashboard">
+                        <div class="status-board-card">
+                            <div class="status-board-header">
+                                <h3 class="status-board-title">OPSCAP</h3>
+                                <div class="status-board-controls">
+                                    <span class="status-overall-label">Overall</span>
+                                    <span id="status-overall-dot-opscap" class="status-indicator status-green"></span>
+                                    <select id="status-overall-opscap" class="status-overall-select" onchange="setCapabilityOverallStatus('opscap', this.value)">
+                                        <option value="green">Green</option>
+                                        <option value="amber">Amber</option>
+                                        <option value="red">Red</option>
+                                    </select>
+                                    <button class="small-btn status-add-btn" type="button" onclick="toggleCapabilityForm('opscap')">+</button>
+                                </div>
+                            </div>
+                            <div id="status-form-opscap" class="status-add-form hidden">
+                                <input id="status-title-opscap" type="text" placeholder="Title">
+                                <textarea id="status-notes-opscap" placeholder="Notes"></textarea>
+                                <select id="status-level-opscap">
+                                    <option value="green">Green</option>
+                                    <option value="amber">Amber</option>
+                                    <option value="red">Red</option>
+                                </select>
+                                <button class="small-btn" type="button" onclick="addCapabilityItem('opscap')">Add Item</button>
+                            </div>
+                            <p id="status-empty-opscap" class="hint" style="margin-top:0">No OPSCAP items yet.</p>
+                            <div id="status-list-opscap" class="status-list"></div>
+                        </div>
+
+                        <div class="status-board-card">
+                            <div class="status-board-header">
+                                <h3 class="status-board-title">SYSCAP</h3>
+                                <div class="status-board-controls">
+                                    <span class="status-overall-label">Overall</span>
+                                    <span id="status-overall-dot-syscap" class="status-indicator status-green"></span>
+                                    <select id="status-overall-syscap" class="status-overall-select" onchange="setCapabilityOverallStatus('syscap', this.value)">
+                                        <option value="green">Green</option>
+                                        <option value="amber">Amber</option>
+                                        <option value="red">Red</option>
+                                    </select>
+                                    <button class="small-btn status-add-btn" type="button" onclick="toggleCapabilityForm('syscap')">+</button>
+                                </div>
+                            </div>
+                            <div id="status-form-syscap" class="status-add-form hidden">
+                                <input id="status-title-syscap" type="text" placeholder="Title">
+                                <textarea id="status-notes-syscap" placeholder="Notes"></textarea>
+                                <select id="status-level-syscap">
+                                    <option value="green">Green</option>
+                                    <option value="amber">Amber</option>
+                                    <option value="red">Red</option>
+                                </select>
+                                <button class="small-btn" type="button" onclick="addCapabilityItem('syscap')">Add Item</button>
+                            </div>
+                            <p id="status-empty-syscap" class="hint" style="margin-top:0">No SYSCAP items yet.</p>
+                            <div id="status-list-syscap" class="status-list"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="phrase-modal" class="modal-overlay" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="phrase-modal-title">
+        <div class="modal-header">
+            <h3 id="phrase-modal-title">Phrase Preview</h3>
+            <button class="small-btn" type="button" onclick="closePhraseModal()">Close</button>
+        </div>
+        <div class="modal-body">
+            <p class="hint" style="margin-top:12px">Click any phrase to copy it to the clipboard.</p>
+            <div id="phrase-list" class="phrase-list"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const placeholderRegex = /\[([A-Z0-9_\-]+)\]/gi;
+    const SESSION_FILENAME_PREFIX = 'c2_session';
+    const DEFAULT_TEMPLATE_CATEGORY = 'General';
+    const CATEGORY_ALL = '__ALL_CATEGORIES__';
+    const FREQUENCY_PLACEHOLDER_MAP = {
+        'IF-DL': 'ifDL',
+        'DL-LO': 'dlLO',
+        'RF-DL': 'rfDL',
+        'TTF': 'ttf',
+        'RF-UL': 'rfUL',
+        'UL-LO': 'ulLO',
+        'IF-UL': 'ifUL'
+    };
+    const FREQUENCY_ANCHORS = new Set(['ifDL', 'rfDL', 'rfUL', 'ifUL']);
+    const FREQUENCY_FIELD_CONFIG = [
+        { key: 'ifDL', elementId: 'freq-if-dl', anchor: true },
+        { key: 'dlLO', elementId: 'freq-dl-lo', anchor: false },
+        { key: 'rfDL', elementId: 'freq-rf-dl', anchor: true },
+        { key: 'ttf', elementId: 'freq-ttf', anchor: false },
+        { key: 'rfUL', elementId: 'freq-rf-ul', anchor: true },
+        { key: 'ulLO', elementId: 'freq-ul-lo', anchor: false },
+        { key: 'ifUL', elementId: 'freq-if-ul', anchor: true }
+    ];
+    const SIGNAL_PLACEHOLDER = 'SIGNAL';
+    const SIGNAL_ANCHOR_OPTIONS = [
+        { key: 'ifDL', label: 'IF-DL (MHz)' },
+        { key: 'rfDL', label: 'RF-DL (MHz)' },
+        { key: 'rfUL', label: 'RF-UL (MHz)' },
+        { key: 'ifUL', label: 'IF-UL (MHz)' }
+    ];
+    const SIGNAL_FREQUENCY_FIELDS = [
+        { key: 'ifDL', label: 'IF-DL' },
+        { key: 'rfDL', label: 'RF-DL' },
+        { key: 'rfUL', label: 'RF-UL' },
+        { key: 'ifUL', label: 'IF-UL' }
+    ];
+    const SIGNAL_FREQUENCY_PLACEHOLDER_MAP = {
+        'SIGNAL-IF-DL': 'ifDL',
+        'SIGNAL-RF-DL': 'rfDL',
+        'SIGNAL-RF-UL': 'rfUL',
+        'SIGNAL-IF-UL': 'ifUL'
+    };
+    const SIGNAL_ATTRIBUTE_PLACEHOLDERS = {
+        'SIGNAL-BW': 'bandwidth'
+    };
+    const ENGAGEMENT_STATUS_OPTIONS = {
+        normal: ['tasked', 'ready', 'active', 'inactive'],
+        probe: ['requested', 'approved', 'active', 'inactive']
+    };
+    const DEFAULT_FREQUENCY_STATE = {
+        ifDL: 1000,
+        dlLO: 10750,
+        rfDL: 11750,
+        ttf: 2225,
+        rfUL: 13975,
+        ulLO: 13000,
+        ifUL: 975
+    };
+    const frequencyState = { ...DEFAULT_FREQUENCY_STATE };
+    let lastFrequencyAnchor = 'ifDL';
+    let frequencyPlaceholderValues = {};
+    let signals = [];
+    let signalKeywordOptions = [];
+    let signalIdCounter = 1;
+    let engagements = [];
+    let engagementIdCounter = 1;
+    let selectedEngagementMessageId = null;
+    let selectedEngagementMessageText = '';
+    let timelineWindowHours = 12;
+    const CAPABILITY_STATUS_OPTIONS = ['green', 'amber', 'red'];
+    let capabilityStatusBoards = {
+        opscap: [],
+        syscap: []
+    };
+    let capabilityOverallStatus = {
+        opscap: 'green',
+        syscap: 'green'
+    };
+    let capabilityStatusItemCounter = 1;
+    let selectedStatusMessageText = '';
+    const clockZones = {
+        tz2: { label: 'LIMA', offset: -5 },
+        tz3: { label: 'MIKE', offset: 3 }
+    };
+    let activeClockConfigTarget = null;
+    let customFieldDefs = [];
+    const customFieldState = {};
+    let customPlaceholderValues = {};
+    let customPlaceholderSet = new Set();
+    const BANDS = {
+        'C': {
+            name: 'C Band',
+            downlink: { min: 3.7, max: 4.2 },
+            uplink: { min: 5.925, max: 6.425 }
+        },
+        'X': {
+            name: 'X Band',
+            downlink: { min: 7.25, max: 7.75 },
+            uplink: { min: 7.9, max: 8.4 }
+        },
+        'Ku': {
+            name: 'Ku Band',
+            downlink: { min: 10.7, max: 12.75 },
+            uplink: { min: 13.75, max: 14.5 }
+        },
+        'Ka': {
+            name: 'Ka Band',
+            downlink: { min: 17.3, max: 20.2 },
+            uplink: { min: 27.0, max: 31.0 }
+        }
+    };
+    const LO_PRESETS = {
+        'C': [
+            { label: 'Airbus Ranger C (Down 5150 / Up 4900)', downLO: 5150, upLO: 4900 },
+            { label: 'Satlite C (Down 5150 / Up 5750)', downLO: 5150, upLO: 5750 },
+            { label: 'Hawkeye C (Down 5150 / Up 4900)', downLO: 5150, upLO: 4900 },
+            { label: 'C-Band Standard (Down 5150 / Up 4900)', downLO: 5150, upLO: 4900 },
+            { label: 'C-Band Wide IF (Down 5150 / Up 5750)', downLO: 5150, upLO: 5750 }
+        ],
+        'X': [
+            { label: 'Airbus Ranger X (Down 6300 / Up 7000)', downLO: 6300, upLO: 7000 },
+            { label: 'Satlite X (Down 6300 / Up 7000)', downLO: 6300, upLO: 7000 },
+            { label: 'Hawkeye X (Down 6650 / Up 7000)', downLO: 6650, upLO: 7000 },
+            { label: 'Tampa Antennas X (Down 6300 / Up 6950)', downLO: 6300, upLO: 6950 },
+            { label: 'X-Band Standard (Down 6300 / Up 7000)', downLO: 6300, upLO: 7000 },
+            { label: 'X-Band Alt (Down 6650 / Up 7000)', downLO: 6650, upLO: 7000 }
+        ],
+        'Ku': [
+            { label: 'Airbus Ranger Ku Low (Down 10000 / Up 13000)', downLO: 10000, upLO: 13000 },
+            { label: 'Airbus Ranger Ku Mid (Down 10750 / Up 13000)', downLO: 10750, upLO: 13000 },
+            { label: 'Airbus Ranger Ku High (Down 11200 / Up 13000)', downLO: 11200, upLO: 13000 },
+            { label: 'Satlite Ku (Down 10600 / Up 13000)', downLO: 10600, upLO: 13000 },
+            { label: 'Hawkeye III Ku Low (Down 10000 / Up 13000)', downLO: 10000, upLO: 13000 },
+            { label: 'Hawkeye III Ku Mid (Down 10750 / Up 13000)', downLO: 10750, upLO: 13000 },
+            { label: 'Hawkeye III Ku High (Down 11200 / Up 13000)', downLO: 11200, upLO: 13000 },
+            { label: 'Tampa Antennas Ku Low (Down 10000 / Up 12800)', downLO: 10000, upLO: 12800 },
+            { label: 'Tampa Antennas Ku High (Down 10800 / Up 12800)', downLO: 10800, upLO: 12800 },
+            { label: 'Ku-Band Universal Low (Down 10000 / Up 13000)', downLO: 10000, upLO: 13000 },
+            { label: 'Ku-Band Universal Low (Down 10750 / Up 13000)', downLO: 10750, upLO: 13000 },
+            { label: 'Ku-Band Universal High (Down 11200 / Up 13000)', downLO: 11200, upLO: 13000 }
+        ],
+        'Ka': [
+            { label: 'Airbus Ranger Ka (Down 21200 / Up 29250)', downLO: 21200, upLO: 29250 },
+            { label: 'Satlite Ka (Down 21000 / Up 29000)', downLO: 21000, upLO: 29000 },
+            { label: 'Hawkeye Ka (Down 21200 / Up 29250)', downLO: 21200, upLO: 29250 },
+            { label: 'Tampa Antennas Ka (Down 21000 / Up 29000)', downLO: 21000, upLO: 29000 },
+            { label: 'Ka-Band Typical (Down 21200 / Up 29250)', downLO: 21200, upLO: 29250 },
+            { label: 'Ka-Band Alt (Down 21000 / Up 29000)', downLO: 21000, upLO: 29000 }
+        ]
+    };
+    let keywordMap = {};
+    let templates = [];
+    let templateCategories = [];
+    let currentTemplateCategory = CATEGORY_ALL;
+    let lastTemplateIndex = null;
+    const currentValues = {};
+    let phraseLog = [];
+
+    function setSessionStatus(message, isError = false) {
+        const statusEl = document.getElementById('session-status');
+        if (!statusEl) return;
+        statusEl.style.color = isError ? '#ff7777' : '#bbb';
+        statusEl.textContent = message;
+        clearTimeout(setSessionStatus._timer);
+        if (message) {
+            setSessionStatus._timer = setTimeout(() => {
+                statusEl.textContent = '';
+            }, 2500);
+        }
+    }
+
+    function updateTopClock() {
+        const zuluEl = document.getElementById('clock-zulu');
+        const tz2El = document.getElementById('clock-zone-tz2');
+        const tz3El = document.getElementById('clock-zone-tz3');
+        if (!zuluEl || !tz2El || !tz3El) {
+            return;
+        }
+        const now = new Date();
+        const formatClock = (dateObj) => dateObj.toISOString().slice(11, 19);
+        const buildOffsetTime = (offsetHours) => {
+            const millis = now.getTime() + (offsetHours * 60 * 60 * 1000);
+            return formatClock(new Date(millis));
+        };
+        const zulu = formatClock(now);
+        const tz2Time = buildOffsetTime(clockZones.tz2.offset);
+        const tz3Time = buildOffsetTime(clockZones.tz3.offset);
+        zuluEl.textContent = `ZULU ${zulu}`;
+        tz2El.textContent = `${clockZones.tz2.label} ${tz2Time}`;
+        tz3El.textContent = `${clockZones.tz3.label} ${tz3Time}`;
+    }
+
+    function parseClockOffset(value, fallback) {
+        const parsed = parseFloat(value);
+        if (Number.isNaN(parsed) || parsed < -14 || parsed > 14) {
+            return fallback;
+        }
+        return parsed;
+    }
+
+    function applyClockConfigInputs() {
+        if (!activeClockConfigTarget || !clockZones[activeClockConfigTarget]) {
+            return;
+        }
+        const labelInput = document.getElementById('clock-config-label');
+        const offsetInput = document.getElementById('clock-config-offset');
+        if (!labelInput || !offsetInput) {
+            return;
+        }
+        const zone = clockZones[activeClockConfigTarget];
+        const normalizedLabel = (labelInput.value || '').toString().trim().toUpperCase();
+        zone.label = normalizedLabel || zone.label;
+        zone.offset = parseClockOffset(offsetInput.value, zone.offset);
+        updateTopClock();
+    }
+
+    function openClockConfig(target) {
+        if (!clockZones[target]) {
+            return;
+        }
+        const panel = document.getElementById('clock-config-panel');
+        const labelInput = document.getElementById('clock-config-label');
+        const offsetInput = document.getElementById('clock-config-offset');
+        if (!panel || !labelInput || !offsetInput) {
+            return;
+        }
+        if (activeClockConfigTarget === target && !panel.classList.contains('hidden')) {
+            closeClockConfig();
+            return;
+        }
+        activeClockConfigTarget = target;
+        const zone = clockZones[target];
+        labelInput.value = zone.label;
+        offsetInput.value = String(zone.offset);
+        panel.classList.remove('hidden');
+
+        const tz2Btn = document.getElementById('clock-zone-tz2');
+        const tz3Btn = document.getElementById('clock-zone-tz3');
+        if (tz2Btn) tz2Btn.classList.toggle('active', target === 'tz2');
+        if (tz3Btn) tz3Btn.classList.toggle('active', target === 'tz3');
+    }
+
+    function closeClockConfig() {
+        activeClockConfigTarget = null;
+        const panel = document.getElementById('clock-config-panel');
+        if (panel) {
+            panel.classList.add('hidden');
+        }
+        const tz2Btn = document.getElementById('clock-zone-tz2');
+        const tz3Btn = document.getElementById('clock-zone-tz3');
+        if (tz2Btn) tz2Btn.classList.remove('active');
+        if (tz3Btn) tz3Btn.classList.remove('active');
+    }
+
+    function initTopClock() {
+        const labelInput = document.getElementById('clock-config-label');
+        const offsetInput = document.getElementById('clock-config-offset');
+        if (labelInput && !labelInput.dataset.bound) {
+            labelInput.dataset.bound = 'true';
+            labelInput.addEventListener('input', applyClockConfigInputs);
+            labelInput.addEventListener('change', applyClockConfigInputs);
+        }
+        if (offsetInput && !offsetInput.dataset.bound) {
+            offsetInput.dataset.bound = 'true';
+            offsetInput.addEventListener('input', applyClockConfigInputs);
+            offsetInput.addEventListener('change', applyClockConfigInputs);
+        }
+        let lastMinute = -1;
+        const tick = () => {
+            updateTopClock();
+            const minute = getCurrentUtcMinutes();
+            if (minute !== lastMinute) {
+                lastMinute = minute;
+                renderEngagementTimeline();
+            }
+        };
+        tick();
+        setInterval(tick, 1000);
+    }
+
+    function initFrequencyPanel() {
+        const bandSelect = document.getElementById('freq-band');
+        if (bandSelect && !bandSelect.options.length) {
+            Object.keys(BANDS).forEach(key => {
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = `${key} Band`;
+                bandSelect.appendChild(option);
+            });
+        }
+        if (bandSelect && !bandSelect.dataset.bound) {
+            bandSelect.dataset.bound = 'true';
+            bandSelect.addEventListener('change', () => {
+                populateFrequencyPresetSelect(true);
+                updateDerivedFrequencies(lastFrequencyAnchor);
+            });
+        }
+
+        const presetSelect = document.getElementById('freq-lo-preset');
+        if (presetSelect && !presetSelect.dataset.bound) {
+            presetSelect.dataset.bound = 'true';
+            presetSelect.addEventListener('change', applyFrequencyPreset);
+        }
+
+        FREQUENCY_FIELD_CONFIG.forEach(({ key, elementId, anchor }) => {
+            const input = document.getElementById(elementId);
+            if (input && !input.dataset.bound) {
+                input.dataset.bound = 'true';
+                input.addEventListener('input', (event) => handleFrequencyInput(key, event.target.value, anchor));
+            }
+        });
+
+        resetFrequencyDefaults();
+    }
+
+    function populateFrequencyPresetSelect(applyDefault = false) {
+        const select = document.getElementById('freq-lo-preset');
+        if (!select) return;
+        const band = getSelectedFrequencyBand();
+        const presets = LO_PRESETS[band] || [];
+        select.innerHTML = '';
+        presets.forEach((preset, index) => {
+            const option = document.createElement('option');
+            option.value = String(index);
+            option.textContent = preset.label;
+            select.appendChild(option);
+        });
+        select.disabled = !presets.length;
+        if (applyDefault && presets.length) {
+            select.value = '0';
+            applyFrequencyPreset();
+        }
+    }
+
+    function applyFrequencyPreset() {
+        const select = document.getElementById('freq-lo-preset');
+        if (!select) return;
+        const band = getSelectedFrequencyBand();
+        const presets = LO_PRESETS[band] || [];
+        const idx = parseInt(select.value, 10);
+        if (Number.isNaN(idx) || !presets[idx]) {
+            return;
+        }
+        frequencyState.dlLO = presets[idx].downLO;
+        frequencyState.ulLO = presets[idx].upLO;
+        updateDerivedFrequencies(lastFrequencyAnchor);
+    }
+
+    function handleFrequencyInput(key, rawValue, isAnchor) {
+        if (rawValue === '' || rawValue === null || rawValue === undefined) {
+            return;
+        }
+        const value = parseFloat(rawValue);
+        if (Number.isNaN(value)) {
+            return;
+        }
+        frequencyState[key] = value;
+        if (isAnchor && FREQUENCY_ANCHORS.has(key)) {
+            lastFrequencyAnchor = key;
+            updateDerivedFrequencies(key);
+        } else {
+            updateDerivedFrequencies(lastFrequencyAnchor);
+        }
+    }
+
+    function updateDerivedFrequencies(anchorKey = 'ifDL') {
+        const band = getSelectedFrequencyBand();
+        const resolvedAnchor = FREQUENCY_ANCHORS.has(anchorKey) ? anchorKey : 'ifDL';
+        switch (resolvedAnchor) {
+            case 'rfDL':
+                frequencyState.ifDL = computeIfFromRf(frequencyState.rfDL, frequencyState.dlLO, band);
+                frequencyState.rfUL = frequencyState.rfDL + frequencyState.ttf;
+                frequencyState.ifUL = frequencyState.rfUL - frequencyState.ulLO;
+                break;
+            case 'rfUL':
+                frequencyState.rfDL = frequencyState.rfUL - frequencyState.ttf;
+                frequencyState.ifDL = computeIfFromRf(frequencyState.rfDL, frequencyState.dlLO, band);
+                frequencyState.ifUL = frequencyState.rfUL - frequencyState.ulLO;
+                break;
+            case 'ifUL':
+                frequencyState.rfUL = frequencyState.ifUL + frequencyState.ulLO;
+                frequencyState.rfDL = frequencyState.rfUL - frequencyState.ttf;
+                frequencyState.ifDL = computeIfFromRf(frequencyState.rfDL, frequencyState.dlLO, band);
+                break;
+            case 'ifDL':
+            default:
+                frequencyState.rfDL = computeRfFromIf(frequencyState.ifDL, frequencyState.dlLO, band);
+                frequencyState.rfUL = frequencyState.rfDL + frequencyState.ttf;
+                frequencyState.ifUL = frequencyState.rfUL - frequencyState.ulLO;
+                break;
+        }
+        lastFrequencyAnchor = resolvedAnchor;
+        refreshFrequencyUI();
+    }
+
+    function computeRfFromIf(ifMHz, downLO, band) {
+        if (band === 'C') {
+            return downLO - ifMHz;
+        }
+        return ifMHz + downLO;
+    }
+
+    function computeIfFromRf(rfMHz, downLO, band) {
+        if (band === 'C') {
+            return downLO - rfMHz;
+        }
+        return rfMHz - downLO;
+    }
+
+    function refreshFrequencyUI() {
+        const formatNumber = (value) => Number.isFinite(value) ? value.toFixed(3) : '';
+        FREQUENCY_FIELD_CONFIG.forEach(({ key, elementId }) => {
+            const input = document.getElementById(elementId);
+            if (!input) return;
+            if (document.activeElement === input) {
+                return;
+            }
+            input.value = formatNumber(frequencyState[key]);
+        });
+        updateFrequencyPlaceholderValues();
+        generate();
+    }
+
+    function updateFrequencyPlaceholderValues() {
+        frequencyPlaceholderValues = {};
+        Object.entries(FREQUENCY_PLACEHOLDER_MAP).forEach(([placeholder, stateKey]) => {
+            const value = frequencyState[stateKey];
+            frequencyPlaceholderValues[placeholder] = Number.isFinite(value) ? value.toFixed(3) : '';
+        });
+    }
+
+    function getPlaceholderValue(key) {
+        if (Object.prototype.hasOwnProperty.call(frequencyPlaceholderValues, key)) {
+            return frequencyPlaceholderValues[key] || '';
+        }
+        if (Object.prototype.hasOwnProperty.call(SIGNAL_FREQUENCY_PLACEHOLDER_MAP, key)) {
+            return getSignalFrequencyPlaceholderValue(key) || '';
+        }
+        if (Object.prototype.hasOwnProperty.call(SIGNAL_ATTRIBUTE_PLACEHOLDERS, key)) {
+            return getSignalAttributePlaceholderValue(key) || '';
+        }
+        if (Object.prototype.hasOwnProperty.call(customPlaceholderValues, key)) {
+            return customPlaceholderValues[key] || '';
+        }
+        const stored = currentValues[key];
+        if (typeof stored === 'number') {
+            return stored.toString();
+        }
+        return (stored || '').toString();
+    }
+
+    function resetFrequencyDefaults() {
+        const bandSelect = document.getElementById('freq-band');
+        if (bandSelect) {
+            bandSelect.value = 'Ku';
+        }
+        lastFrequencyAnchor = 'ifDL';
+        frequencyState.ifDL = DEFAULT_FREQUENCY_STATE.ifDL;
+        frequencyState.rfDL = DEFAULT_FREQUENCY_STATE.rfDL;
+        frequencyState.rfUL = DEFAULT_FREQUENCY_STATE.rfUL;
+        frequencyState.ifUL = DEFAULT_FREQUENCY_STATE.ifUL;
+        frequencyState.ttf = DEFAULT_FREQUENCY_STATE.ttf;
+        frequencyState.dlLO = DEFAULT_FREQUENCY_STATE.dlLO;
+        frequencyState.ulLO = DEFAULT_FREQUENCY_STATE.ulLO;
+        populateFrequencyPresetSelect(true);
+        updateDerivedFrequencies('ifDL');
+    }
+
+    function serializeFrequencyState() {
+        const presetSelect = document.getElementById('freq-lo-preset');
+        return {
+            band: getSelectedFrequencyBand(),
+            preset: presetSelect ? presetSelect.value : '',
+            lastAnchor: lastFrequencyAnchor,
+            values: { ...frequencyState }
+        };
+    }
+
+    function restoreFrequencyState(payload) {
+        if (!payload || typeof payload !== 'object') {
+            resetFrequencyDefaults();
+            return;
+        }
+        const band = payload.band && BANDS[payload.band] ? payload.band : 'Ku';
+        const bandSelect = document.getElementById('freq-band');
+        if (bandSelect) {
+            bandSelect.value = band;
+        }
+        populateFrequencyPresetSelect(false);
+        const presetSelect = document.getElementById('freq-lo-preset');
+        if (presetSelect) {
+            const desiredValue = String(payload.preset || '');
+            const hasOption = Array.from(presetSelect.options).some(opt => opt.value === desiredValue);
+            if (hasOption) {
+                presetSelect.value = desiredValue;
+            }
+        }
+        if (payload.values && typeof payload.values === 'object') {
+            Object.keys(frequencyState).forEach(key => {
+                const value = parseFloat(payload.values[key]);
+                if (!Number.isNaN(value)) {
+                    frequencyState[key] = value;
+                }
+            });
+        }
+        if (payload.lastAnchor && FREQUENCY_ANCHORS.has(payload.lastAnchor)) {
+            lastFrequencyAnchor = payload.lastAnchor;
+        } else {
+            lastFrequencyAnchor = 'ifDL';
+        }
+        updateDerivedFrequencies(lastFrequencyAnchor);
+    }
+
+    function getSelectedFrequencyBand() {
+        const select = document.getElementById('freq-band');
+        const value = select && select.value ? select.value : 'Ku';
+        return BANDS[value] ? value : 'Ku';
+    }
+
+    function parseCustomParamDefs(raw) {
+        const defs = [];
+        raw.split('\n').forEach(line => {
+            const trimmed = line.trim();
+            if (!trimmed) {
+                return;
+            }
+            const parts = trimmed.split('|').map(segment => segment.trim());
+            const placeholder = (parts[0] || '').toUpperCase().replace(/[^A-Z0-9_\-]/g, '');
+            if (!placeholder) {
+                return;
+            }
+            const label = parts[1] || placeholder;
+            const type = (parts[2] || 'text').toLowerCase() === 'number' ? 'number' : 'text';
+            const defaultValue = parts[3] !== undefined ? parts[3] : '';
+            defs.push({ placeholder, label, type, defaultValue });
+        });
+        return defs;
+    }
+
+    function applyCustomDefinitions(defs) {
+        customFieldDefs = defs;
+        customPlaceholderSet = new Set(defs.map(def => def.placeholder));
+        const existingKeys = new Set(Object.keys(customFieldState));
+        defs.forEach(def => {
+            if (!Object.prototype.hasOwnProperty.call(customFieldState, def.placeholder)) {
+                customFieldState[def.placeholder] = def.defaultValue || '';
+            }
+            existingKeys.delete(def.placeholder);
+        });
+        existingKeys.forEach(key => delete customFieldState[key]);
+        renderCustomFields();
+        updateCustomPlaceholderValues();
+    }
+
+    function renderCustomFields() {
+        const container = document.getElementById('custom-parameters-container');
+        const emptyState = document.getElementById('custom-empty');
+        if (!container || !emptyState) {
+            return;
+        }
+        container.innerHTML = '';
+        if (!customFieldDefs.length) {
+            emptyState.style.display = 'block';
+            updateCustomPlaceholderValues();
+            return;
+        }
+        emptyState.style.display = 'none';
+        customFieldDefs.forEach(def => {
+            const field = document.createElement('div');
+            field.className = 'custom-field';
+
+            const label = document.createElement('label');
+            label.textContent = def.label;
+            field.appendChild(label);
+
+            const input = document.createElement('input');
+            input.type = def.type === 'number' ? 'number' : 'text';
+            if (def.type === 'number') {
+                input.step = '0.1';
+            }
+            input.value = customFieldState[def.placeholder] || '';
+            input.addEventListener('input', (event) => handleCustomFieldInput(def.placeholder, event.target.value));
+            field.appendChild(input);
+
+            container.appendChild(field);
+        });
+        updateCustomPlaceholderValues();
+    }
+
+    function isReservedPlaceholder(key) {
+        return Object.prototype.hasOwnProperty.call(FREQUENCY_PLACEHOLDER_MAP, key)
+            || customPlaceholderSet.has(key)
+            || Object.prototype.hasOwnProperty.call(SIGNAL_FREQUENCY_PLACEHOLDER_MAP, key)
+            || Object.prototype.hasOwnProperty.call(SIGNAL_ATTRIBUTE_PLACEHOLDERS, key);
+    }
+
+    function handleCustomFieldInput(key, rawValue) {
+        customFieldState[key] = rawValue ?? '';
+        updateCustomPlaceholderValues();
+        generate();
+    }
+
+    function updateCustomPlaceholderValues() {
+        customPlaceholderValues = {};
+        customFieldDefs.forEach(def => {
+            const value = customFieldState[def.placeholder] ?? '';
+            customPlaceholderValues[def.placeholder] = value.toString();
+        });
+    }
+
+    function resetCustomFields(triggerGenerate = true) {
+        customFieldDefs.forEach(def => {
+            customFieldState[def.placeholder] = def.defaultValue || '';
+        });
+        renderCustomFields();
+        if (triggerGenerate) {
+            generate();
+        }
+    }
+
+    function serializeCustomState() {
+        const values = {};
+        customFieldDefs.forEach(def => {
+            values[def.placeholder] = customFieldState[def.placeholder] ?? '';
+        });
+        return {
+            values
+        };
+    }
+
+    function restoreCustomState(payload) {
+        if (!payload || typeof payload !== 'object' || !payload.values) {
+            resetCustomFields();
+            return;
+        }
+        let updated = false;
+        customFieldDefs.forEach(def => {
+            if (Object.prototype.hasOwnProperty.call(payload.values, def.placeholder)) {
+                customFieldState[def.placeholder] = payload.values[def.placeholder] ?? '';
+                updated = true;
+            } else {
+                customFieldState[def.placeholder] = def.defaultValue || '';
+            }
+        });
+        renderCustomFields();
+        if (updated) {
+            generate();
+        }
+    }
+
+    function sanitizeFileName(name) {
+        return name
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9-_]+/g, '_')
+            .replace(/_+/g, '_')
+            .replace(/^_|_$/g, '') || SESSION_FILENAME_PREFIX;
+    }
+
+    function collectSessionPayload(sessionName) {
+        return {
+            name: sessionName,
+            keywordDefs: document.getElementById('keyword-defs').value,
+            templatesRaw: document.getElementById('list-templates').value,
+            customDefsRaw: (document.getElementById('custom-param-defs') || { value: '' }).value,
+            log: phraseLog,
+            frequency: serializeFrequencyState(),
+            custom: serializeCustomState(),
+            signals: serializeSignals(),
+            engagements: serializeEngagements(),
+            capabilityStatus: serializeCapabilityStatus(),
+            savedAt: new Date().toISOString(),
+        };
+    }
+
+    function normalizeCapabilityStatus(status) {
+        const normalized = (status || '').toString().trim().toLowerCase();
+        return CAPABILITY_STATUS_OPTIONS.includes(normalized) ? normalized : CAPABILITY_STATUS_OPTIONS[0];
+    }
+
+    function serializeCapabilityStatus() {
+        return {
+            overall: {
+                opscap: normalizeCapabilityStatus(capabilityOverallStatus.opscap),
+                syscap: normalizeCapabilityStatus(capabilityOverallStatus.syscap)
+            },
+            opscap: capabilityStatusBoards.opscap.map(item => ({
+                title: item.title,
+                notes: item.notes,
+                status: normalizeCapabilityStatus(item.status),
+                createdAt: item.createdAt || new Date().toISOString()
+            })),
+            syscap: capabilityStatusBoards.syscap.map(item => ({
+                title: item.title,
+                notes: item.notes,
+                status: normalizeCapabilityStatus(item.status),
+                createdAt: item.createdAt || new Date().toISOString()
+            }))
+        };
+    }
+
+    function restoreCapabilityStatus(payload) {
+        capabilityOverallStatus = {
+            opscap: normalizeCapabilityStatus(payload && payload.overall ? payload.overall.opscap : 'green'),
+            syscap: normalizeCapabilityStatus(payload && payload.overall ? payload.overall.syscap : 'green')
+        };
+        capabilityStatusBoards = {
+            opscap: [],
+            syscap: []
+        };
+        capabilityStatusItemCounter = 1;
+        ['opscap', 'syscap'].forEach(boardKey => {
+            const source = Array.isArray(payload && payload[boardKey]) ? payload[boardKey] : [];
+            source.forEach(entry => {
+                const title = (entry.title || '').toString().trim();
+                if (!title) {
+                    return;
+                }
+                capabilityStatusBoards[boardKey].push({
+                    id: capabilityStatusItemCounter++,
+                    title,
+                    notes: (entry.notes || '').toString(),
+                    status: normalizeCapabilityStatus(entry.status),
+                    createdAt: entry.createdAt || new Date().toISOString()
+                });
+            });
+        });
+        renderCapabilityBoards();
+    }
+
+    function getTemplatesForStatus() {
+        if (!Array.isArray(templates) || !templates.length) {
+            return [];
+        }
+        return templates.filter(tpl => (tpl.category || '').toUpperCase() === 'STATUS');
+    }
+
+    function getSelectedStatusBoardKey() {
+        const select = document.getElementById('status-template-board');
+        const board = select ? (select.value || 'opscap') : 'opscap';
+        return board === 'syscap' ? 'syscap' : 'opscap';
+    }
+
+    function getSelectedStatusItem(boardKey) {
+        const select = document.getElementById('status-template-item');
+        if (!select || !select.value) {
+            return null;
+        }
+        const id = parseInt(select.value, 10);
+        if (Number.isNaN(id)) {
+            return null;
+        }
+        const items = capabilityStatusBoards[boardKey] || [];
+        return items.find(item => item.id === id) || null;
+    }
+
+    function buildStatusItemsSummary(boardKey) {
+        const items = capabilityStatusBoards[boardKey] || [];
+        if (!items.length) {
+            return '';
+        }
+        return items
+            .map(item => `${item.title} (${normalizeCapabilityStatus(item.status).toUpperCase()}): ${item.notes || 'No notes'}`)
+            .join('; ');
+    }
+
+    function resolveStatusTemplate(templateText) {
+        let text = (templateText || '').toString();
+        const boardKey = getSelectedStatusBoardKey();
+        const boardLabel = boardKey.toUpperCase();
+        const item = getSelectedStatusItem(boardKey);
+        const itemStatus = normalizeCapabilityStatus(item ? item.status : '');
+        const replacements = {
+            'STATUS-BOARD': boardLabel,
+            'STATUS-TITLE': item ? item.title : '',
+            'STATUS-NOTES': item ? item.notes : '',
+            'STATUS-LEVEL': item ? itemStatus.toUpperCase() : '',
+            'STATUS-ITEM-STATUS': item ? itemStatus.toUpperCase() : '',
+            'ITEM-TITLE': item ? item.title : '',
+            'ITEM-NOTES': item ? item.notes : '',
+            'ITEM-STATUS': item ? itemStatus.toUpperCase() : '',
+            'STATUS-COUNT': String((capabilityStatusBoards[boardKey] || []).length),
+            'STATUS-ITEMS': buildStatusItemsSummary(boardKey),
+            'OPSCAP-STATUS': normalizeCapabilityStatus(capabilityOverallStatus.opscap).toUpperCase(),
+            'SYSCAP-STATUS': normalizeCapabilityStatus(capabilityOverallStatus.syscap).toUpperCase(),
+            'OPSCAP-COUNT': String((capabilityStatusBoards.opscap || []).length),
+            'SYSCAP-COUNT': String((capabilityStatusBoards.syscap || []).length),
+            'OPSCAP-ITEMS': buildStatusItemsSummary('opscap'),
+            'SYSCAP-ITEMS': buildStatusItemsSummary('syscap')
+        };
+
+        const placeholders = extractPlaceholders(text);
+        placeholders.forEach(key => {
+            const normalized = (key || '').toUpperCase();
+            const explicitValue = Object.prototype.hasOwnProperty.call(replacements, normalized)
+                ? replacements[normalized]
+                : getPlaceholderValue(normalized).trim();
+            const safeValue = (explicitValue || '').toString().trim() || '_____';
+            const regex = new RegExp(`\\[${normalized}\\]`, 'gi');
+            text = text.replace(regex, safeValue);
+        });
+        return text;
+    }
+
+    function updateStatusMessageWindow(messageText) {
+        const box = document.getElementById('status-message-box');
+        selectedStatusMessageText = (messageText || '').toString();
+        if (!box) {
+            return;
+        }
+        box.textContent = selectedStatusMessageText || 'Select a STATUS template to preview message...';
+    }
+
+    function renderStatusTemplateOptions() {
+        const select = document.getElementById('status-template-select');
+        if (!select) {
+            return;
+        }
+        const previous = select.value;
+        const statusTemplates = getTemplatesForStatus();
+        select.innerHTML = '';
+        if (!statusTemplates.length) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'No STATUS templates';
+            select.appendChild(option);
+            select.disabled = true;
+            return;
+        }
+        select.disabled = false;
+        const blankOption = document.createElement('option');
+        blankOption.value = '';
+        blankOption.textContent = 'Select template...';
+        select.appendChild(blankOption);
+        statusTemplates.forEach(tpl => {
+            const option = document.createElement('option');
+            option.value = tpl.text;
+            option.textContent = tpl.text.length > 80 ? `${tpl.text.slice(0, 77)}...` : tpl.text;
+            select.appendChild(option);
+        });
+        const hasPrevious = statusTemplates.some(tpl => tpl.text === previous);
+        select.value = hasPrevious ? previous : '';
+    }
+
+    function renderStatusItemOptions() {
+        const select = document.getElementById('status-template-item');
+        if (!select) {
+            return;
+        }
+        const boardKey = getSelectedStatusBoardKey();
+        const items = capabilityStatusBoards[boardKey] || [];
+        const previous = select.value;
+        select.innerHTML = '';
+        if (!items.length) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = `No ${boardKey.toUpperCase()} items`;
+            select.appendChild(option);
+            select.disabled = true;
+            return;
+        }
+        select.disabled = false;
+        items.forEach(item => {
+            const option = document.createElement('option');
+            option.value = String(item.id);
+            option.textContent = `${item.title} (${normalizeCapabilityStatus(item.status).toUpperCase()})`;
+            select.appendChild(option);
+        });
+        const hasPrevious = items.some(item => String(item.id) === previous);
+        select.value = hasPrevious ? previous : String(items[0].id);
+    }
+
+    function refreshStatusTemplateMessage() {
+        const templateSelect = document.getElementById('status-template-select');
+        if (!templateSelect || templateSelect.disabled || !templateSelect.value) {
+            updateStatusMessageWindow('');
+            return;
+        }
+        updateStatusMessageWindow(resolveStatusTemplate(templateSelect.value));
+    }
+
+    function handleStatusTemplateBoardChange() {
+        renderStatusItemOptions();
+        refreshStatusTemplateMessage();
+    }
+
+    function copyStatusMessage() {
+        const text = (selectedStatusMessageText || '').trim();
+        if (!text) {
+            setSessionStatus('No status message selected to copy', true);
+            return;
+        }
+        copyStringToClipboard(text, (success) => {
+            setSessionStatus(success ? 'Status message copied' : 'Copy failed', !success);
+        });
+    }
+
+    function setCapabilityOverallStatus(boardKey, value) {
+        if (!Object.prototype.hasOwnProperty.call(capabilityOverallStatus, boardKey)) {
+            return;
+        }
+        capabilityOverallStatus[boardKey] = normalizeCapabilityStatus(value);
+        renderCapabilityBoards();
+    }
+
+    function toggleCapabilityForm(boardKey) {
+        const form = document.getElementById(`status-form-${boardKey}`);
+        if (!form) {
+            return;
+        }
+        const willShow = form.classList.contains('hidden');
+        form.classList.toggle('hidden', !willShow);
+        if (willShow) {
+            const titleInput = document.getElementById(`status-title-${boardKey}`);
+            if (titleInput) {
+                titleInput.focus();
+            }
+        }
+    }
+
+    function addCapabilityItem(boardKey) {
+        if (!Object.prototype.hasOwnProperty.call(capabilityStatusBoards, boardKey)) {
+            return;
+        }
+        const titleInput = document.getElementById(`status-title-${boardKey}`);
+        const notesInput = document.getElementById(`status-notes-${boardKey}`);
+        const statusSelect = document.getElementById(`status-level-${boardKey}`);
+        if (!titleInput || !notesInput || !statusSelect) {
+            return;
+        }
+        const title = (titleInput.value || '').trim();
+        if (!title) {
+            setSessionStatus('Status item needs a title', true);
+            titleInput.focus();
+            return;
+        }
+        capabilityStatusBoards[boardKey].unshift({
+            id: capabilityStatusItemCounter++,
+            title,
+            notes: (notesInput.value || '').toString().trim(),
+            status: normalizeCapabilityStatus(statusSelect.value),
+            createdAt: new Date().toISOString()
+        });
+        titleInput.value = '';
+        notesInput.value = '';
+        statusSelect.value = CAPABILITY_STATUS_OPTIONS[0];
+        renderCapabilityBoards();
+    }
+
+    function removeCapabilityItem(boardKey, id) {
+        if (!Object.prototype.hasOwnProperty.call(capabilityStatusBoards, boardKey)) {
+            return;
+        }
+        const index = capabilityStatusBoards[boardKey].findIndex(item => item.id === id);
+        if (index === -1) {
+            return;
+        }
+        capabilityStatusBoards[boardKey].splice(index, 1);
+        renderCapabilityBoards();
+    }
+
+    function updateCapabilityItem(boardKey, id, updates) {
+        if (!Object.prototype.hasOwnProperty.call(capabilityStatusBoards, boardKey)) {
+            return;
+        }
+        const item = (capabilityStatusBoards[boardKey] || []).find(entry => entry.id === id);
+        if (!item) {
+            return;
+        }
+        if (Object.prototype.hasOwnProperty.call(updates, 'title')) {
+            item.title = (updates.title || '').toString().trim();
+        }
+        if (Object.prototype.hasOwnProperty.call(updates, 'notes')) {
+            item.notes = (updates.notes || '').toString();
+        }
+        if (Object.prototype.hasOwnProperty.call(updates, 'status')) {
+            item.status = normalizeCapabilityStatus(updates.status);
+        }
+        if (!item.title) {
+            item.title = 'UNTITLED';
+        }
+        renderCapabilityBoards();
+    }
+
+    function renderCapabilityBoard(boardKey, title) {
+        const list = document.getElementById(`status-list-${boardKey}`);
+        const empty = document.getElementById(`status-empty-${boardKey}`);
+        if (!list || !empty) {
+            return;
+        }
+        const items = capabilityStatusBoards[boardKey] || [];
+        list.innerHTML = '';
+        empty.style.display = items.length ? 'none' : 'block';
+        items.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'status-item';
+
+            const header = document.createElement('div');
+            header.className = 'status-item-header';
+
+            const titleWrap = document.createElement('div');
+            titleWrap.className = 'status-title-wrap';
+            const indicator = document.createElement('span');
+            indicator.className = `status-indicator status-${normalizeCapabilityStatus(item.status)}`;
+            const titleEl = document.createElement('span');
+            titleEl.className = 'status-item-title';
+            titleEl.textContent = item.title;
+            titleWrap.appendChild(indicator);
+            titleWrap.appendChild(titleEl);
+
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'small-btn';
+            removeBtn.textContent = 'Remove';
+            removeBtn.addEventListener('click', () => removeCapabilityItem(boardKey, item.id));
+
+            header.appendChild(titleWrap);
+            header.appendChild(removeBtn);
+
+            const editWrap = document.createElement('div');
+            editWrap.className = 'status-item-edit';
+
+            const titleInput = document.createElement('input');
+            titleInput.className = 'status-item-input';
+            titleInput.type = 'text';
+            titleInput.value = item.title || '';
+            titleInput.placeholder = 'Title';
+            titleInput.addEventListener('change', (event) => {
+                updateCapabilityItem(boardKey, item.id, { title: event.target.value });
+            });
+            editWrap.appendChild(titleInput);
+
+            const notesInput = document.createElement('textarea');
+            notesInput.className = 'status-item-notes-input';
+            notesInput.value = item.notes || '';
+            notesInput.placeholder = 'Notes';
+            notesInput.addEventListener('change', (event) => {
+                updateCapabilityItem(boardKey, item.id, { notes: event.target.value });
+            });
+            editWrap.appendChild(notesInput);
+
+            const itemStatusSelect = document.createElement('select');
+            itemStatusSelect.className = 'status-item-select';
+            CAPABILITY_STATUS_OPTIONS.forEach(statusOption => {
+                const option = document.createElement('option');
+                option.value = statusOption;
+                option.textContent = statusOption.toUpperCase();
+                itemStatusSelect.appendChild(option);
+            });
+            itemStatusSelect.value = normalizeCapabilityStatus(item.status);
+            itemStatusSelect.addEventListener('change', (event) => {
+                updateCapabilityItem(boardKey, item.id, { status: event.target.value });
+            });
+            editWrap.appendChild(itemStatusSelect);
+
+            const notes = document.createElement('div');
+            notes.className = 'status-item-notes';
+            notes.textContent = item.notes ? `Notes: ${item.notes}` : 'No notes.';
+
+            const footer = document.createElement('div');
+            footer.className = 'status-item-footer';
+            footer.textContent = `${title} ${normalizeCapabilityStatus(item.status).toUpperCase()}`;
+
+            card.appendChild(header);
+            card.appendChild(editWrap);
+            card.appendChild(notes);
+            card.appendChild(footer);
+            list.appendChild(card);
+        });
+    }
+
+    function renderCapabilityBoards() {
+        renderCapabilityBoard('opscap', 'OPSCAP');
+        renderCapabilityBoard('syscap', 'SYSCAP');
+        const opsSelect = document.getElementById('status-overall-opscap');
+        const sysSelect = document.getElementById('status-overall-syscap');
+        if (opsSelect) {
+            opsSelect.value = normalizeCapabilityStatus(capabilityOverallStatus.opscap);
+        }
+        if (sysSelect) {
+            sysSelect.value = normalizeCapabilityStatus(capabilityOverallStatus.syscap);
+        }
+        const opsDot = document.getElementById('status-overall-dot-opscap');
+        const sysDot = document.getElementById('status-overall-dot-syscap');
+        if (opsDot) {
+            opsDot.className = `status-indicator status-${normalizeCapabilityStatus(capabilityOverallStatus.opscap)}`;
+        }
+        if (sysDot) {
+            sysDot.className = `status-indicator status-${normalizeCapabilityStatus(capabilityOverallStatus.syscap)}`;
+        }
+        renderStatusTemplateOptions();
+        renderStatusItemOptions();
+        refreshStatusTemplateMessage();
+    }
+
+    function showTab(tab, btn) {
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        document.querySelectorAll('.nav-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('view-' + tab).classList.add('active');
+        const tabBtn = btn || document.querySelector(`.nav-tabs .tab-btn[data-tab="${tab}"]`);
+        if (tabBtn) {
+            tabBtn.classList.add('active');
+        }
+    }
+
+    function showMainTab(tab, btn) {
+        document.querySelectorAll('.main-tab-view').forEach(v => v.classList.remove('active'));
+        document.querySelectorAll('.main-tab-btn').forEach(b => b.classList.remove('active'));
+        const view = document.getElementById(`main-tab-${tab}`);
+        if (view) {
+            view.classList.add('active');
+        }
+        const tabBtn = btn || document.querySelector(`.main-tab-btn[data-main-tab="${tab}"]`);
+        if (tabBtn) {
+            tabBtn.classList.add('active');
+        }
+    }
+
+    function saveConfig() {
+        keywordMap = parseKeywordDefs(document.getElementById('keyword-defs').value);
+        templates = parseTemplates(document.getElementById('list-templates').value);
+        currentTemplateCategory = CATEGORY_ALL;
+        lastTemplateIndex = null;
+        const customTextArea = document.getElementById('custom-param-defs');
+        const customDefs = parseCustomParamDefs(customTextArea ? customTextArea.value : '');
+        applyCustomDefinitions(customDefs);
+        updateSignalKeywordOptions(false);
+        refreshTemplateSelectors();
+        handleTemplateChange();
+        renderEngagementList();
+        renderStatusTemplateOptions();
+        refreshStatusTemplateMessage();
+        showTab('op');
+    }
+
+    function saveSession() {
+        const nameInput = document.getElementById('session-name');
+        const sessionName = (nameInput ? nameInput.value : '').trim();
+        if (!sessionName) {
+            setSessionStatus('Enter a session name before saving', true);
+            if (nameInput) {
+                nameInput.focus();
+            }
+            return;
+        }
+        try {
+            const payload = collectSessionPayload(sessionName);
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            const slug = sanitizeFileName(sessionName);
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            link.href = url;
+            link.download = `${slug}_${timestamp}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            setSessionStatus(`Session "${sessionName}" saved to JSON`);
+        } catch (err) {
+            console.error('Failed to save session', err);
+            setSessionStatus('Save failed', true);
+        }
+    }
+
+    function loadSession() {
+        const fileInput = document.getElementById('session-file');
+        if (!fileInput) {
+            setSessionStatus('File input not found', true);
+            return;
+        }
+        fileInput.value = '';
+        fileInput.click();
+    }
+
+    function handleSessionFile(event) {
+        const file = event.target.files && event.target.files[0];
+        if (!file) {
+            setSessionStatus('No file selected', true);
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = JSON.parse(e.target.result);
+                applySessionData(data);
+                const displayName = data.name || file.name;
+                setSessionStatus(`Loaded session from ${displayName}`);
+            } catch (err) {
+                console.error('Failed to load session JSON', err);
+                setSessionStatus('Invalid session file', true);
+            } finally {
+                event.target.value = '';
+            }
+        };
+        reader.onerror = () => {
+            console.error('File read error', reader.error);
+            setSessionStatus('Could not read file', true);
+            event.target.value = '';
+        };
+        reader.readAsText(file);
+    }
+
+    function applySessionData(data) {
+        if (!data || typeof data !== 'object') {
+            throw new Error('Session file missing content');
+        }
+        document.getElementById('keyword-defs').value = typeof data.keywordDefs === 'string' ? data.keywordDefs : '';
+        document.getElementById('list-templates').value = typeof data.templatesRaw === 'string' ? data.templatesRaw : '';
+        const customParamInput = document.getElementById('custom-param-defs');
+        if (customParamInput) {
+            customParamInput.value = typeof data.customDefsRaw === 'string' ? data.customDefsRaw : customParamInput.value;
+        }
+        phraseLog = Array.isArray(data.log)
+            ? data.log.map(normalizeLogEntry).filter(Boolean)
+            : [];
+        if (data.name && document.getElementById('session-name')) {
+            document.getElementById('session-name').value = data.name;
+        }
+        restoreFrequencyState(data.frequency);
+        resetCurrentValues();
+        saveConfig();
+        restoreCustomState(data.custom);
+        restoreSignals(data.signals);
+        restoreEngagements(data.engagements);
+        restoreCapabilityStatus(data.capabilityStatus);
+        renderLog();
+    }
+
+    function parseKeywordDefs(raw) {
+        const map = {};
+        raw.split('\n').forEach(line => {
+            if (!line.trim()) return;
+            const parts = line.split(':');
+            if (!parts.length) return;
+            const key = parts.shift().trim().toUpperCase();
+            if (!key) return;
+            const values = parts.join(':')
+                .split(',')
+                .map(v => v.trim())
+                .filter(Boolean);
+            map[key] = values;
+        });
+        return map;
+    }
+
+    function getKeywordOptions(key) {
+        const normalized = (key || '').toUpperCase();
+        const defined = keywordMap[normalized] ? [...keywordMap[normalized]] : [];
+        if (normalized === SIGNAL_PLACEHOLDER && signalKeywordOptions.length) {
+            signalKeywordOptions.forEach(name => {
+                if (!defined.includes(name)) {
+                    defined.push(name);
+                }
+            });
+        }
+        return defined;
+    }
+
+    function parseTemplates(raw) {
+        return raw
+            .split('\n')
+            .map(line => line.trim())
+            .filter(Boolean)
+            .map(line => {
+                let category = DEFAULT_TEMPLATE_CATEGORY;
+                let text = line;
+                const separatorIdx = line.indexOf('|');
+                if (separatorIdx > -1) {
+                    const potentialCategory = line.slice(0, separatorIdx).trim();
+                    const remainder = line.slice(separatorIdx + 1).trim();
+                    if (remainder) {
+                        category = potentialCategory || DEFAULT_TEMPLATE_CATEGORY;
+                        text = remainder;
+                    } else {
+                        text = line;
+                    }
+                }
+                if (!text) {
+                    return null;
+                }
+                return { category, text };
+            })
+            .filter(Boolean);
+    }
+
+    function getFilteredTemplateEntries() {
+        return templates
+            .map((tpl, idx) => ({ ...tpl, idx }))
+            .filter(item => currentTemplateCategory === CATEGORY_ALL || item.category === currentTemplateCategory);
+    }
+
+    function buildTemplateCategoryList() {
+        const categorySet = new Set();
+        templates.forEach(tpl => {
+            categorySet.add(tpl.category || DEFAULT_TEMPLATE_CATEGORY);
+        });
+        templateCategories = Array.from(categorySet).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    }
+
+    function populateCategoryDropdown() {
+        const select = document.getElementById('template-category');
+        if (!select) {
+            return;
+        }
+        const previous = currentTemplateCategory;
+        select.innerHTML = '';
+        const allOption = document.createElement('option');
+        allOption.value = CATEGORY_ALL;
+        allOption.textContent = 'All Categories';
+        select.appendChild(allOption);
+        templateCategories.forEach(category => {
+            const opt = document.createElement('option');
+            opt.value = category;
+            opt.textContent = category;
+            select.appendChild(opt);
+        });
+        const hasPrevious = previous === CATEGORY_ALL || templateCategories.includes(previous);
+        const nextValue = hasPrevious ? previous : CATEGORY_ALL;
+        currentTemplateCategory = nextValue;
+        select.value = nextValue;
+        select.disabled = !templates.length;
+    }
+
+    function populateTemplateDropdown() {
+        const select = document.getElementById('op-template');
+        if (!select) {
+            return;
+        }
+        const filtered = getFilteredTemplateEntries();
+        select.innerHTML = '';
+        if (!filtered.length) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = templates.length ? 'No templates in this category' : 'Add a template to begin';
+            select.appendChild(opt);
+            select.disabled = true;
+            lastTemplateIndex = null;
+            select.value = '';
+            return;
+        }
+        select.disabled = false;
+        filtered.forEach(item => {
+            const opt = document.createElement('option');
+            opt.value = item.idx;
+            const catLabel = item.category || DEFAULT_TEMPLATE_CATEGORY;
+            const trimmed = item.text.length > 80 ? `${item.text.slice(0, 77)}...` : item.text;
+            opt.textContent = currentTemplateCategory === CATEGORY_ALL ? `${catLabel} • ${trimmed}` : trimmed;
+            select.appendChild(opt);
+        });
+        const match = filtered.some(item => item.idx === lastTemplateIndex);
+        const resolvedIndex = match ? lastTemplateIndex : filtered[0].idx;
+        select.value = String(resolvedIndex);
+    }
+
+    function refreshTemplateSelectors() {
+        buildTemplateCategoryList();
+        populateCategoryDropdown();
+        populateTemplateDropdown();
+    }
+
+    function hasTemplatesForCurrentCategory() {
+        if (!templates.length) {
+            return false;
+        }
+        if (currentTemplateCategory === CATEGORY_ALL) {
+            return templates.length > 0;
+        }
+        return templates.some(tpl => tpl.category === currentTemplateCategory);
+    }
+
+    function getNoTemplateMessage() {
+        if (!templates.length) {
+            return 'Add a template in the configuration tab to get started.';
+        }
+        if (!hasTemplatesForCurrentCategory()) {
+            return 'No templates in this category. Choose another category or add more templates in Configuration mode.';
+        }
+        return 'Select a template to start configuring values.';
+    }
+
+    function handleCategoryChange() {
+        const select = document.getElementById('template-category');
+        if (!select) {
+            return;
+        }
+        const value = select.value;
+        currentTemplateCategory = value === CATEGORY_ALL || !value ? CATEGORY_ALL : value;
+        populateTemplateDropdown();
+        handleTemplateChange();
+    }
+
+    function handleTemplateChange() {
+        const select = document.getElementById('op-template');
+        if (select && !select.disabled) {
+            const idx = parseInt(select.value, 10);
+            lastTemplateIndex = Number.isNaN(idx) ? null : idx;
+        } else {
+            lastTemplateIndex = null;
+        }
+        renderDynamicInputs();
+        generate();
+    }
+
+    function getSelectedTemplate() {
+        const select = document.getElementById('op-template');
+        if (!select || select.disabled) {
+            return '';
+        }
+        const idx = parseInt(select.value, 10);
+        const template = Number.isNaN(idx) ? null : templates[idx];
+        return template ? template.text : '';
+    }
+
+    function renderDynamicInputs() {
+        const container = document.getElementById('dynamic-inputs');
+        container.innerHTML = '';
+        const template = getSelectedTemplate();
+
+        if (!template) {
+            container.innerHTML = `<p class="hint">${getNoTemplateMessage()}</p>`;
+            return;
+        }
+
+        const placeholders = extractPlaceholders(template);
+
+        if (!placeholders.length) {
+            container.innerHTML = '<p class="hint">No [KEYWORDS] detected in this template.</p>';
+            return;
+        }
+
+        const manualKeys = placeholders.filter(key => !isReservedPlaceholder(key));
+        const requiresSignalSelection = placeholders.some(isSignalDependentPlaceholderKey);
+        if (requiresSignalSelection && !manualKeys.includes(SIGNAL_PLACEHOLDER)) {
+            manualKeys.unshift(SIGNAL_PLACEHOLDER);
+        }
+
+        if (!manualKeys.length) {
+            container.innerHTML = '<p class="hint">All placeholders in this template are auto-filled.</p>';
+            return;
+        }
+
+        manualKeys.forEach(key => {
+            const group = document.createElement('div');
+            group.className = 'input-group';
+
+            const label = document.createElement('label');
+            label.textContent = `${key} Value`;
+            group.appendChild(label);
+
+            const options = getKeywordOptions(key);
+            const storedValue = currentValues[key];
+            if (options.length) {
+                const select = document.createElement('select');
+                options.forEach(optionValue => {
+                    const opt = document.createElement('option');
+                    opt.value = optionValue;
+                    opt.textContent = optionValue;
+                    select.appendChild(opt);
+                });
+                select.value = storedValue && options.includes(storedValue) ? storedValue : options[0];
+                currentValues[key] = select.value;
+                select.addEventListener('change', (e) => {
+                    currentValues[key] = e.target.value;
+                    generate();
+                });
+                group.appendChild(select);
+            } else {
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.placeholder = `Enter ${key.toLowerCase()}...`;
+                input.value = storedValue || '';
+                currentValues[key] = input.value;
+                input.addEventListener('input', (e) => {
+                    currentValues[key] = e.target.value;
+                    generate();
+                });
+                group.appendChild(input);
+            }
+
+            container.appendChild(group);
+        });
+    }
+
+    function extractPlaceholders(template) {
+        const matches = new Set();
+        let match;
+        while ((match = placeholderRegex.exec(template)) !== null) {
+            matches.add(match[1].toUpperCase());
+        }
+        placeholderRegex.lastIndex = 0;
+        return Array.from(matches);
+    }
+
+    function resolveTemplateText(template) {
+        if (!template) {
+            return '';
+        }
+        let result = template;
+        const placeholders = extractPlaceholders(template);
+        placeholders.forEach(key => {
+            const value = getPlaceholderValue(key).trim();
+            const safeValue = value || '_____';
+            const regex = new RegExp(`\\[${key}\\]`, 'gi');
+            result = result.replace(regex, safeValue);
+        });
+        return result;
+    }
+
+    function generate() {
+        const template = getSelectedTemplate();
+        if (!template) {
+            document.getElementById('output-box').innerText = getNoTemplateMessage();
+            return;
+        }
+        document.getElementById('output-box').innerText = resolveTemplateText(template);
+    }
+
+    function appendToLog(text) {
+        const clean = (text || '').trim();
+        if (!clean) return;
+        const entry = {
+            text: clean,
+            timestamp: new Date().toISOString(),
+        };
+        phraseLog.unshift(entry);
+        renderLog();
+    }
+
+    function resetCurrentValues() {
+        Object.keys(currentValues).forEach(key => delete currentValues[key]);
+    }
+
+    function normalizeLogEntry(entry) {
+        if (!entry) return null;
+        if (typeof entry === 'string') {
+            return {
+                text: entry,
+                timestamp: new Date().toISOString(),
+            };
+        }
+        const text = (entry.text || '').trim();
+        if (!text) return null;
+        return {
+            text,
+            timestamp: entry.timestamp || new Date().toISOString(),
+        };
+    }
+
+    function renderLog() {
+        const list = document.getElementById('phrase-log');
+        const emptyState = document.getElementById('log-empty');
+        if (!list || !emptyState) return;
+        list.innerHTML = '';
+        if (!phraseLog.length) {
+            emptyState.style.display = 'block';
+            return;
+        }
+        emptyState.style.display = 'none';
+        phraseLog.forEach(entry => {
+            const li = document.createElement('li');
+            li.textContent = `[${formatTimestamp(entry.timestamp)}] ${entry.text}`;
+            list.appendChild(li);
+        });
+    }
+
+    function togglePanel(button) {
+        if (!button) {
+            return;
+        }
+        const targetId = button.getAttribute('data-target');
+        if (!targetId) {
+            return;
+        }
+        const target = document.getElementById(targetId);
+        if (!target) {
+            return;
+        }
+        const collapsed = target.classList.toggle('collapsed');
+        button.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        button.textContent = collapsed ? '>' : 'v';
+    }
+
+    function initSideFrameResize() {
+        const layout = document.querySelector('.workspace-layout');
+        const sideFrame = document.querySelector('.side-frame');
+        const resizer = document.getElementById('side-resizer');
+        if (!layout || !sideFrame || !resizer) {
+            return;
+        }
+
+        let startX = 0;
+        let startWidth = 0;
+
+        const stopResize = () => {
+            document.body.classList.remove('resizing-side');
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', stopResize);
+        };
+
+        const onMouseMove = (event) => {
+            const minWidth = 240;
+            const maxWidth = Math.max(minWidth, Math.floor(layout.clientWidth * 0.7));
+            const delta = event.clientX - startX;
+            const nextWidth = Math.min(maxWidth, Math.max(minWidth, startWidth + delta));
+            sideFrame.style.flex = `0 0 ${nextWidth}px`;
+            sideFrame.style.minWidth = `${minWidth}px`;
+            sideFrame.style.maxWidth = `${maxWidth}px`;
+        };
+
+        resizer.addEventListener('mousedown', (event) => {
+            if (window.matchMedia('(max-width: 960px)').matches) {
+                return;
+            }
+            event.preventDefault();
+            startX = event.clientX;
+            startWidth = sideFrame.getBoundingClientRect().width;
+            document.body.classList.add('resizing-side');
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', stopResize);
+        });
+    }
+
+    function formatFrequencyValue(value) {
+        return Number.isFinite(value) ? Number(value).toFixed(3) : '--';
+    }
+
+    function updateSignalKeywordOptions(triggerUI = true) {
+        signalKeywordOptions = signals.map(sig => sig.name);
+        renderEngagementSignalOptions();
+        if (triggerUI) {
+            renderDynamicInputs();
+            generate();
+        }
+    }
+
+    function renderEngagementSignalOptions() {
+        const select = document.getElementById('engagement-signal');
+        if (!select) {
+            return;
+        }
+        const previous = select.value;
+        select.innerHTML = '';
+        if (!signals.length) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'Add signals first';
+            select.appendChild(option);
+            select.disabled = true;
+            return;
+        }
+        select.disabled = false;
+        signals.forEach(signal => {
+            const option = document.createElement('option');
+            option.value = signal.name;
+            option.textContent = signal.name;
+            select.appendChild(option);
+        });
+        const hasPrevious = signals.some(signal => signal.name === previous);
+        select.value = hasPrevious ? previous : signals[0].name;
+    }
+
+    function handleEngagementProbeToggle() {
+        const checkbox = document.getElementById('engagement-probe');
+        const probeField = document.getElementById('engagement-probe-type-field');
+        const probeType = document.getElementById('engagement-probe-type');
+        if (!probeField) {
+            return;
+        }
+        const enabled = checkbox ? checkbox.checked : false;
+        probeField.classList.toggle('hidden', !enabled);
+        if (!enabled && probeType) {
+            probeType.value = 'CW';
+        }
+    }
+
+    function getEngagementStatusOptions(entryOrProbeFlag) {
+        const isProbe = typeof entryOrProbeFlag === 'boolean'
+            ? entryOrProbeFlag
+            : !!(entryOrProbeFlag && entryOrProbeFlag.probe);
+        return isProbe ? ENGAGEMENT_STATUS_OPTIONS.probe : ENGAGEMENT_STATUS_OPTIONS.normal;
+    }
+
+    function getTemplatesForEngagement(entry) {
+        if (!Array.isArray(templates) || !templates.length) {
+            return [];
+        }
+        const desiredCategory = entry && entry.probe ? 'PROBE' : 'ENGAGEMENTS';
+        return templates.filter(tpl => (tpl.category || '').toUpperCase() === desiredCategory);
+    }
+
+    function setEngagementTemplate(entry, templateText) {
+        if (!entry) {
+            return;
+        }
+        const selected = (templateText || '').toString();
+        entry.selectedTemplate = selected;
+        entry.selectedTemplatePreview = selected ? resolveEngagementTemplateForEntry(entry, selected) : '';
+    }
+
+    function resolveEngagementTemplateForEntry(entry, templateText) {
+        let text = (templateText || '').toString();
+        const linkedSignal = getSignalByName(entry.signal);
+        const signalFreq = linkedSignal && linkedSignal.frequencies ? linkedSignal.frequencies : {};
+        const formatNumeric = (value) => Number.isFinite(value) ? Number(value).toFixed(3) : '';
+        const computedTtf = Number.isFinite(signalFreq.rfUL) && Number.isFinite(signalFreq.rfDL)
+            ? (signalFreq.rfUL - signalFreq.rfDL)
+            : null;
+        const replacements = {
+            'SIGNAL': linkedSignal ? linkedSignal.name : (entry.signal || ''),
+            'START': entry.startTime || '',
+            'STOP': entry.stopTime || '',
+            'EFFECT': entry.effect || '',
+            'STATUS': (entry.status || '').toUpperCase(),
+            'PROBE': entry.probe ? 'YES' : 'NO',
+            'PROBE-TYPE': entry.probeType || '',
+            'PWR': entry.pwr ?? '',
+            'OFFSET': entry.offset ?? '',
+            'IF-DL': formatNumeric(signalFreq.ifDL),
+            'RF-DL': formatNumeric(signalFreq.rfDL),
+            'RF-UL': formatNumeric(signalFreq.rfUL),
+            'IF-UL': formatNumeric(signalFreq.ifUL),
+            'SIGNAL-IF-DL': formatNumeric(signalFreq.ifDL),
+            'SIGNAL-RF-DL': formatNumeric(signalFreq.rfDL),
+            'SIGNAL-RF-UL': formatNumeric(signalFreq.rfUL),
+            'SIGNAL-IF-UL': formatNumeric(signalFreq.ifUL),
+            'SIGNAL-BW': formatNumeric(linkedSignal ? linkedSignal.bandwidth : null),
+            'BW': formatNumeric(linkedSignal ? linkedSignal.bandwidth : null),
+            'TTF': formatNumeric(computedTtf),
+            'DL-LO': formatNumeric(linkedSignal && linkedSignal.metadata ? linkedSignal.metadata.dlLO : null),
+            'UL-LO': formatNumeric(linkedSignal && linkedSignal.metadata ? linkedSignal.metadata.ulLO : null)
+        };
+
+        const placeholders = extractPlaceholders(text);
+        placeholders.forEach(key => {
+            const normalized = (key || '').toUpperCase();
+            const explicitValue = Object.prototype.hasOwnProperty.call(replacements, normalized)
+                ? replacements[normalized]
+                : getPlaceholderValue(normalized).trim();
+            const safeValue = (explicitValue || '').toString().trim() || '_____';
+            const regex = new RegExp(`\\[${normalized}\\]`, 'gi');
+            text = text.replace(regex, safeValue);
+        });
+        return text;
+    }
+
+    function updateEngagementMessageWindow(messageText, engagementId = null) {
+        const box = document.getElementById('engagement-message-box');
+        selectedEngagementMessageText = (messageText || '').toString();
+        selectedEngagementMessageId = engagementId;
+        if (!box) {
+            return;
+        }
+        box.textContent = selectedEngagementMessageText || 'Select an engagement template to preview message...';
+    }
+
+    function refreshEngagementMessageWindow() {
+        if (!engagements.length) {
+            updateEngagementMessageWindow('', null);
+            return;
+        }
+        if (selectedEngagementMessageId !== null) {
+            const match = engagements.find(entry => entry.id === selectedEngagementMessageId);
+            if (match && match.selectedTemplatePreview) {
+                updateEngagementMessageWindow(match.selectedTemplatePreview, match.id);
+                return;
+            }
+        }
+        const firstWithTemplate = engagements.find(entry => entry.selectedTemplatePreview);
+        if (firstWithTemplate) {
+            updateEngagementMessageWindow(firstWithTemplate.selectedTemplatePreview, firstWithTemplate.id);
+            return;
+        }
+        updateEngagementMessageWindow('', null);
+    }
+
+    function copyEngagementMessage() {
+        const text = (selectedEngagementMessageText || '').trim();
+        if (!text) {
+            setSessionStatus('No engagement message selected to copy', true);
+            return;
+        }
+        copyStringToClipboard(text, (success) => {
+            setSessionStatus(success ? 'Engagement message copied' : 'Copy failed', !success);
+        });
+    }
+
+    function renderEngagementList() {
+        const list = document.getElementById('engagement-list-main');
+        const emptyState = document.getElementById('engagement-empty-main');
+        const sideSummary = document.getElementById('engagement-side-summary');
+        if (sideSummary) {
+            const count = engagements.length;
+            sideSummary.textContent = `${count} engagement${count === 1 ? '' : 's'} in plan.`;
+        }
+        if (!list || !emptyState) {
+            return;
+        }
+        list.innerHTML = '';
+        if (!engagements.length) {
+            emptyState.style.display = 'block';
+            return;
+        }
+        emptyState.style.display = 'none';
+        engagements.forEach(entry => {
+            entry.status = normalizeEngagementStatus(entry.status, entry.probe);
+            const card = document.createElement('div');
+            card.className = 'engagement-card';
+
+            const header = document.createElement('div');
+            header.className = 'engagement-card-header';
+            const title = document.createElement('span');
+            title.textContent = entry.signal;
+            header.appendChild(title);
+
+            const actions = document.createElement('div');
+            actions.className = 'engagement-actions';
+
+            const statusSelect = document.createElement('select');
+            statusSelect.className = 'engagement-status-select';
+            const statusOptions = getEngagementStatusOptions(entry);
+            statusOptions.forEach(status => {
+                const option = document.createElement('option');
+                option.value = status;
+                option.textContent = status.toUpperCase();
+                statusSelect.appendChild(option);
+            });
+            statusSelect.value = entry.status;
+            statusSelect.addEventListener('change', (event) => setEngagementStatus(entry.id, event.target.value));
+            actions.appendChild(statusSelect);
+
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'small-btn';
+            removeBtn.textContent = 'Remove';
+            removeBtn.addEventListener('click', () => removeEngagement(entry.id));
+            actions.appendChild(removeBtn);
+
+            header.appendChild(actions);
+
+            const grid = document.createElement('div');
+            grid.className = 'engagement-grid';
+            const rows = [
+                { label: 'Signal', value: entry.signal },
+                { label: 'Start', value: entry.startTime },
+                { label: 'Stop', value: entry.stopTime },
+                { label: 'Effect', value: entry.effect },
+                { label: 'Probe', value: entry.probe ? `${entry.probeType}` : 'No' },
+                { label: 'Status', value: entry.status.toUpperCase() }
+            ];
+            rows.forEach(item => {
+                const cell = document.createElement('div');
+                cell.className = 'engagement-item';
+                const label = document.createElement('span');
+                label.className = 'engagement-label';
+                label.textContent = item.label;
+                const value = document.createElement('span');
+                value.className = 'engagement-value';
+                value.textContent = item.value || '--';
+                cell.appendChild(label);
+                cell.appendChild(value);
+                grid.appendChild(cell);
+            });
+
+            const templateCell = document.createElement('div');
+            templateCell.className = 'engagement-item';
+            const templateLabel = document.createElement('span');
+            templateLabel.className = 'engagement-label';
+            templateLabel.textContent = entry.probe ? 'Probe Template' : 'Engagement Template';
+            templateCell.appendChild(templateLabel);
+
+            const templateSelect = document.createElement('select');
+            templateSelect.className = 'engagement-template-select';
+            const categoryTemplates = getTemplatesForEngagement(entry);
+            if (!categoryTemplates.length) {
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = entry.probe ? 'No PROBE templates' : 'No ENGAGEMENTS templates';
+                templateSelect.appendChild(option);
+                templateSelect.disabled = true;
+                setEngagementTemplate(entry, '');
+            } else {
+                const noneOption = document.createElement('option');
+                noneOption.value = '';
+                noneOption.textContent = 'Select template...';
+                templateSelect.appendChild(noneOption);
+                categoryTemplates.forEach(tpl => {
+                    const option = document.createElement('option');
+                    option.value = tpl.text;
+                    option.textContent = tpl.text.length > 60 ? `${tpl.text.slice(0, 57)}...` : tpl.text;
+                    templateSelect.appendChild(option);
+                });
+                const hasExisting = categoryTemplates.some(tpl => tpl.text === entry.selectedTemplate);
+                const selectedTemplate = hasExisting ? entry.selectedTemplate : '';
+                templateSelect.value = selectedTemplate;
+                setEngagementTemplate(entry, selectedTemplate);
+                templateSelect.addEventListener('change', (event) => {
+                    setEngagementTemplate(entry, event.target.value);
+                    updateEngagementMessageWindow(entry.selectedTemplatePreview, entry.id);
+                    renderEngagementList();
+                });
+            }
+            templateCell.appendChild(templateSelect);
+
+            if (entry.selectedTemplatePreview) {
+                const preview = document.createElement('div');
+                preview.className = 'engagement-template-preview';
+                preview.textContent = entry.selectedTemplatePreview;
+                templateCell.appendChild(preview);
+            }
+            grid.appendChild(templateCell);
+
+            if (entry.probe && entry.probeType === 'MOD') {
+                const cell = document.createElement('div');
+                cell.className = 'engagement-item';
+                const label = document.createElement('span');
+                label.className = 'engagement-label';
+                label.textContent = 'PWR';
+                const input = document.createElement('input');
+                input.className = 'engagement-card-input';
+                input.type = 'number';
+                input.step = '0.1';
+                input.placeholder = 'dBm';
+                input.value = entry.pwr ?? '';
+                input.addEventListener('change', (event) => setEngagementProbeValue(entry.id, 'pwr', event.target.value));
+                cell.appendChild(label);
+                cell.appendChild(input);
+                grid.appendChild(cell);
+            }
+
+            if (entry.probe && entry.probeType === 'CW') {
+                const cell = document.createElement('div');
+                cell.className = 'engagement-item';
+                const label = document.createElement('span');
+                label.className = 'engagement-label';
+                label.textContent = 'Offset';
+                const input = document.createElement('input');
+                input.className = 'engagement-card-input';
+                input.type = 'number';
+                input.step = '0.1';
+                input.placeholder = 'kHz';
+                input.value = entry.offset ?? '';
+                input.addEventListener('change', (event) => setEngagementProbeValue(entry.id, 'offset', event.target.value));
+                cell.appendChild(label);
+                cell.appendChild(input);
+                grid.appendChild(cell);
+            }
+
+            card.appendChild(header);
+            card.appendChild(grid);
+            list.appendChild(card);
+        });
+        refreshEngagementMessageWindow();
+        renderEngagementTimeline();
+    }
+
+    function normalizeEngagementStatus(status, isProbe = false) {
+        const normalized = (status || '').toString().trim().toLowerCase();
+        const options = getEngagementStatusOptions(isProbe);
+        if (options.includes(normalized)) {
+            return normalized;
+        }
+        return options[0];
+    }
+
+    function parseTimeToMinutes(value) {
+        const text = (value || '').toString().trim().toUpperCase();
+        if (!text) {
+            return null;
+        }
+        const normalized = text.endsWith('Z') ? text.slice(0, -1) : text;
+        let hours;
+        let minutes;
+        let match = normalized.match(/^(\d{1,2}):(\d{2})$/);
+        if (match) {
+            hours = parseInt(match[1], 10);
+            minutes = parseInt(match[2], 10);
+        } else {
+            match = normalized.match(/^(\d{3,4})$/);
+            if (!match) {
+                return null;
+            }
+            const digits = match[1].padStart(4, '0');
+            hours = parseInt(digits.slice(0, 2), 10);
+            minutes = parseInt(digits.slice(2, 4), 10);
+        }
+        if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+            return null;
+        }
+        return (hours * 60) + minutes;
+    }
+
+    function formatTimelineTime(minutes) {
+        if (!Number.isFinite(minutes)) {
+            return '--';
+        }
+        const wrapped = ((Math.floor(minutes) % (24 * 60)) + (24 * 60)) % (24 * 60);
+        const h = Math.floor(wrapped / 60);
+        const m = wrapped % 60;
+        return `${String(h).padStart(2, '0')}${String(m).padStart(2, '0')}Z`;
+    }
+
+    function getCurrentUtcMinutes() {
+        const now = new Date();
+        return (now.getUTCHours() * 60) + now.getUTCMinutes();
+    }
+
+    function renderTimelineAxis(windowStartMinutes, windowMinutes) {
+        const axis = document.getElementById('engagement-timeline-axis');
+        if (!axis) {
+            return;
+        }
+        axis.innerHTML = '';
+        const steps = 6;
+        for (let i = 0; i <= steps; i += 1) {
+            const mark = document.createElement('span');
+            const minuteOffset = (windowMinutes / steps) * i;
+            mark.textContent = formatTimelineTime(windowStartMinutes + minuteOffset);
+            axis.appendChild(mark);
+        }
+    }
+
+    function handleTimelineWindowChange(value) {
+        const parsed = parseInt(value, 10);
+        if (![12, 8, 4, 2].includes(parsed)) {
+            return;
+        }
+        timelineWindowHours = parsed;
+        renderEngagementTimeline();
+    }
+
+    function renderEngagementTimeline() {
+        const list = document.getElementById('engagement-timeline-list');
+        const empty = document.getElementById('engagement-timeline-empty');
+        if (!list || !empty) {
+            return;
+        }
+        list.innerHTML = '';
+
+        const windowMinutes = Math.max(60, timelineWindowHours * 60);
+        const windowStartMinutes = getCurrentUtcMinutes();
+        const windowEndMinutes = windowStartMinutes + windowMinutes;
+        renderTimelineAxis(windowStartMinutes, windowMinutes);
+
+        const rows = engagements
+            .map(entry => {
+                const startMinutes = parseTimeToMinutes(entry.startTime);
+                const stopMinutes = parseTimeToMinutes(entry.stopTime);
+                if (startMinutes === null || stopMinutes === null) {
+                    return null;
+                }
+                let endMinutes = stopMinutes;
+                if (endMinutes <= startMinutes) {
+                    endMinutes += 24 * 60;
+                }
+                const duration = endMinutes - startMinutes;
+                if (duration <= 0) {
+                    return null;
+                }
+
+                // Project recurring daily windows onto the rolling UTC horizon.
+                let projected = null;
+                [-1440, 0, 1440, 2880].forEach(shift => {
+                    const candStart = startMinutes + shift;
+                    const candEnd = endMinutes + shift;
+                    if (candEnd <= windowStartMinutes || candStart >= windowEndMinutes) {
+                        return;
+                    }
+                    if (!projected || candStart < projected.start) {
+                        projected = { start: candStart, end: candEnd };
+                    }
+                });
+                if (!projected) {
+                    return null;
+                }
+
+                const clippedStart = Math.max(windowStartMinutes, projected.start);
+                const clippedEnd = Math.min(windowEndMinutes, projected.end);
+                const clippedDuration = clippedEnd - clippedStart;
+                if (clippedDuration <= 0) {
+                    return null;
+                }
+
+                return {
+                    signal: entry.signal,
+                    effect: entry.effect,
+                    status: normalizeEngagementStatus(entry.status, entry.probe),
+                    probe: !!entry.probe,
+                    probeType: entry.probeType || '',
+                    startMinutes: projected.start,
+                    endMinutes: projected.end,
+                    clippedStart,
+                    clippedEnd,
+                    duration: clippedDuration
+                };
+            })
+            .filter(Boolean)
+            .sort((a, b) => a.clippedStart - b.clippedStart);
+
+        if (!rows.length) {
+            empty.style.display = 'block';
+            return;
+        }
+        empty.style.display = 'none';
+
+        rows.forEach(row => {
+            const rowEl = document.createElement('div');
+            rowEl.className = 'timeline-row';
+
+            const label = document.createElement('div');
+            label.className = 'timeline-row-label';
+            label.textContent = row.signal;
+
+            const track = document.createElement('div');
+            track.className = 'timeline-row-track';
+
+            const bar = document.createElement('div');
+            bar.className = `timeline-bar ${normalizeEngagementStatus(row.status, row.probe)}`;
+            const leftPct = ((row.clippedStart - windowStartMinutes) / windowMinutes) * 100;
+            const widthPct = (row.duration / windowMinutes) * 100;
+            bar.style.left = `${Math.max(0, Math.min(100, leftPct)).toFixed(2)}%`;
+            bar.style.width = `${Math.max(1.5, Math.min(100 - leftPct, widthPct)).toFixed(2)}%`;
+            const probeTag = row.probe ? ` ${row.probeType}` : '';
+            bar.title = `${row.signal}${probeTag}: ${formatTimelineTime(row.startMinutes)}-${formatTimelineTime(row.endMinutes)} ${row.effect} (${row.status.toUpperCase()})`;
+            bar.textContent = `${formatTimelineTime(row.startMinutes)}-${formatTimelineTime(row.endMinutes)} ${row.status.toUpperCase()}`;
+
+            track.appendChild(bar);
+            rowEl.appendChild(label);
+            rowEl.appendChild(track);
+            list.appendChild(rowEl);
+        });
+    }
+
+    function addEngagement() {
+        const signalSelect = document.getElementById('engagement-signal');
+        const startInput = document.getElementById('engagement-start');
+        const stopInput = document.getElementById('engagement-stop');
+        const effectInput = document.getElementById('engagement-effect');
+        const probeCheckbox = document.getElementById('engagement-probe');
+        const probeTypeSelect = document.getElementById('engagement-probe-type');
+        if (!signalSelect || !startInput || !stopInput || !effectInput || !probeTypeSelect) {
+            return;
+        }
+        if (!signals.length || !signalSelect.value) {
+            setSessionStatus('Add a signal before creating engagement entries', true);
+            return;
+        }
+        const signal = signalSelect.value;
+        const startTime = (startInput.value || '').trim();
+        const stopTime = (stopInput.value || '').trim();
+        const effect = (effectInput.value || '').trim();
+        const probe = !!(probeCheckbox && probeCheckbox.checked);
+        const probeType = probe ? (probeTypeSelect.value || 'CW') : '';
+        if (!startTime || !stopTime || !effect) {
+            setSessionStatus('Signal, start, stop, and effect are required', true);
+            return;
+        }
+        engagements.unshift({
+            id: engagementIdCounter++,
+            signal,
+            startTime,
+            stopTime,
+            effect,
+            probe,
+            probeType,
+            status: normalizeEngagementStatus('', probe),
+            pwr: probe && probeType === 'MOD' ? '' : null,
+            offset: probe && probeType === 'CW' ? '' : null,
+            selectedTemplate: '',
+            selectedTemplatePreview: '',
+            createdAt: new Date().toISOString()
+        });
+        renderEngagementList();
+        startInput.value = '';
+        stopInput.value = '';
+        effectInput.value = '';
+        if (probeCheckbox) {
+            probeCheckbox.checked = false;
+        }
+        probeTypeSelect.value = 'CW';
+        handleEngagementProbeToggle();
+        setSessionStatus(`Engagement for "${signal}" added`);
+    }
+
+    function setEngagementStatus(id, status) {
+        const entry = engagements.find(item => item.id === id);
+        if (!entry) {
+            return;
+        }
+        entry.status = normalizeEngagementStatus(status, entry.probe);
+        renderEngagementList();
+    }
+
+    function setEngagementProbeValue(id, key, value) {
+        const entry = engagements.find(item => item.id === id);
+        if (!entry || !entry.probe) {
+            return;
+        }
+        if (key === 'pwr') {
+            entry.pwr = value;
+        } else if (key === 'offset') {
+            entry.offset = value;
+        }
+        renderEngagementList();
+    }
+
+    function removeEngagement(id) {
+        const index = engagements.findIndex(entry => entry.id === id);
+        if (index === -1) {
+            return;
+        }
+        engagements.splice(index, 1);
+        renderEngagementList();
+        setSessionStatus('Engagement removed');
+    }
+
+    function clearEngagements(showStatus = true) {
+        if (!engagements.length) {
+            if (showStatus) {
+                setSessionStatus('No engagement entries to clear');
+            }
+            return;
+        }
+        engagements = [];
+        engagementIdCounter = 1;
+        renderEngagementList();
+        updateEngagementMessageWindow('', null);
+        if (showStatus) {
+            setSessionStatus('Engagement plan cleared');
+        }
+    }
+
+    function pruneEngagementsForSignal(signalName, showStatus = false) {
+        if (!signalName) {
+            return;
+        }
+        const before = engagements.length;
+        engagements = engagements.filter(entry => entry.signal !== signalName);
+        if (engagements.length !== before) {
+            renderEngagementList();
+            if (showStatus) {
+                setSessionStatus(`Removed engagements for "${signalName}"`);
+            }
+        }
+    }
+
+    function renderSignalList() {
+        const list = document.getElementById('signals-list-main');
+        const emptyState = document.getElementById('signals-empty-main');
+        const sideSummary = document.getElementById('signals-side-summary');
+        if (sideSummary) {
+            const count = signals.length;
+            sideSummary.textContent = `${count} signal${count === 1 ? '' : 's'} in library.`;
+        }
+        if (!list || !emptyState) {
+            return;
+        }
+        list.innerHTML = '';
+        if (!signals.length) {
+            emptyState.style.display = 'block';
+            return;
+        }
+        emptyState.style.display = 'none';
+        signals.forEach(signal => {
+            const card = document.createElement('div');
+            card.className = 'signal-card';
+
+            const header = document.createElement('div');
+            header.className = 'signal-card-header';
+            const title = document.createElement('span');
+            title.textContent = signal.name;
+            header.appendChild(title);
+
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'small-btn';
+            removeBtn.textContent = 'Remove';
+            removeBtn.addEventListener('click', () => removeSignal(signal.id));
+            header.appendChild(removeBtn);
+
+            const grid = document.createElement('div');
+            grid.className = 'signal-grid';
+            SIGNAL_FREQUENCY_FIELDS.forEach(field => {
+                const cell = document.createElement('div');
+                cell.className = 'signal-grid-item';
+                const label = document.createElement('span');
+                label.className = 'signal-label';
+                label.textContent = field.label;
+                const value = document.createElement('span');
+                value.className = 'signal-value';
+                value.textContent = formatFrequencyValue(signal.frequencies[field.key]);
+                cell.appendChild(label);
+                cell.appendChild(value);
+                grid.appendChild(cell);
+            });
+            if (Number.isFinite(signal.bandwidth)) {
+                const cell = document.createElement('div');
+                cell.className = 'signal-grid-item';
+                const label = document.createElement('span');
+                label.className = 'signal-label';
+                label.textContent = 'BW (MHz)';
+                const value = document.createElement('span');
+                value.className = 'signal-value';
+                value.textContent = Number(signal.bandwidth).toFixed(3);
+                cell.appendChild(label);
+                cell.appendChild(value);
+                grid.appendChild(cell);
+            }
+
+            card.appendChild(header);
+            card.appendChild(grid);
+            list.appendChild(card);
+        });
+    }
+
+    function getSignalByName(name) {
+        if (!name) {
+            return null;
+        }
+        const target = name.trim().toLowerCase();
+        if (!target) {
+            return null;
+        }
+        return signals.find(signal => signal.name.toLowerCase() === target) || null;
+    }
+
+    function getSignalFrequencyPlaceholderValue(key) {
+        const fieldKey = SIGNAL_FREQUENCY_PLACEHOLDER_MAP[key];
+        if (!fieldKey) {
+            return '';
+        }
+        const selectedName = currentValues[SIGNAL_PLACEHOLDER];
+        const signal = getSignalByName(selectedName);
+        if (!signal) {
+            return '';
+        }
+        const value = signal.frequencies[fieldKey];
+        return Number.isFinite(value) ? Number(value).toFixed(3) : '';
+    }
+
+    function getSignalAttributePlaceholderValue(key) {
+        const attribute = SIGNAL_ATTRIBUTE_PLACEHOLDERS[key];
+        if (!attribute) {
+            return '';
+        }
+        const selectedName = currentValues[SIGNAL_PLACEHOLDER];
+        const signal = getSignalByName(selectedName);
+        if (!signal) {
+            return '';
+        }
+        const value = signal[attribute];
+        if (attribute === 'bandwidth') {
+            return Number.isFinite(value) ? Number(value).toFixed(3) : '';
+        }
+        return value ?? '';
+    }
+
+    function isSignalDependentPlaceholderKey(key) {
+        return key === SIGNAL_PLACEHOLDER
+            || Object.prototype.hasOwnProperty.call(SIGNAL_FREQUENCY_PLACEHOLDER_MAP, key)
+            || Object.prototype.hasOwnProperty.call(SIGNAL_ATTRIBUTE_PLACEHOLDERS, key);
+    }
+
+    function handleSignalBandwidthToggle() {
+        const checkbox = document.getElementById('signal-bw-enabled');
+        const input = document.getElementById('signal-bw-value');
+        if (!input) {
+            return;
+        }
+        const enabled = checkbox ? checkbox.checked : false;
+        input.disabled = !enabled;
+        if (!enabled) {
+            input.value = '';
+        }
+    }
+
+    function addSignal() {
+        const nameInput = document.getElementById('signal-name');
+        const anchorSelect = document.getElementById('signal-anchor');
+        const valueInput = document.getElementById('signal-value');
+        const bwCheckbox = document.getElementById('signal-bw-enabled');
+        const bwInput = document.getElementById('signal-bw-value');
+        if (!nameInput || !anchorSelect || !valueInput) {
+            return;
+        }
+        const rawName = (nameInput.value || '').trim();
+        if (!rawName) {
+            setSessionStatus('Enter a signal name', true);
+            nameInput.focus();
+            return;
+        }
+        const anchor = anchorSelect.value;
+        if (!SIGNAL_ANCHOR_OPTIONS.some(option => option.key === anchor)) {
+            setSessionStatus('Select a valid known value type', true);
+            return;
+        }
+        const numericValue = parseFloat(valueInput.value);
+        if (Number.isNaN(numericValue)) {
+            setSessionStatus('Enter a valid frequency value', true);
+            valueInput.focus();
+            return;
+        }
+        const duplicate = signals.some(signal => signal.name.toLowerCase() === rawName.toLowerCase());
+        if (duplicate) {
+            setSessionStatus('Signal name already exists', true);
+            return;
+        }
+        const frequencies = computeSignalFrequencies(anchor, numericValue);
+        if (!frequencies) {
+            setSessionStatus('Could not compute the remaining frequencies', true);
+            return;
+        }
+        const bandwidthEnabled = bwCheckbox && bwCheckbox.checked;
+        let bandwidthValue = null;
+        if (bandwidthEnabled) {
+            const parsedBandwidth = parseFloat(bwInput ? bwInput.value : '');
+            if (Number.isNaN(parsedBandwidth) || parsedBandwidth <= 0) {
+                setSessionStatus('Enter a valid bandwidth in MHz', true);
+                if (bwInput) {
+                    bwInput.focus();
+                }
+                return;
+            }
+            bandwidthValue = parsedBandwidth;
+        }
+        const signal = {
+            id: signalIdCounter++,
+            name: rawName,
+            anchor,
+            anchorValue: numericValue,
+            frequencies,
+            bandwidth: bandwidthEnabled ? bandwidthValue : null,
+            metadata: {
+                band: getSelectedFrequencyBand(),
+                dlLO: frequencyState.dlLO,
+                ulLO: frequencyState.ulLO,
+                ttf: frequencyState.ttf
+            }
+        };
+        signals.push(signal);
+        renderSignalList();
+        updateSignalKeywordOptions();
+        nameInput.value = '';
+        valueInput.value = '';
+        if (bwCheckbox) {
+            bwCheckbox.checked = false;
+        }
+        if (bwInput) {
+            bwInput.value = '';
+            bwInput.disabled = true;
+        }
+        setSessionStatus(`Signal "${rawName}" added`);
+    }
+
+    function removeSignal(id) {
+        const index = signals.findIndex(signal => signal.id === id);
+        if (index === -1) {
+            return;
+        }
+        const [removed] = signals.splice(index, 1);
+        renderSignalList();
+        updateSignalKeywordOptions();
+        pruneEngagementsForSignal(removed.name);
+        setSessionStatus(`Signal "${removed.name}" removed`);
+    }
+
+    function clearSignals(showStatus = true) {
+        if (!signals.length) {
+            if (showStatus) {
+                setSessionStatus('No signals to clear');
+            }
+            return;
+        }
+        signals = [];
+        signalKeywordOptions = [];
+        signalIdCounter = 1;
+        renderSignalList();
+        updateSignalKeywordOptions();
+        clearEngagements(false);
+        if (showStatus) {
+            setSessionStatus('Signal list cleared');
+        }
+    }
+
+    function computeSignalFrequencies(anchorKey, anchorValue) {
+        const value = parseFloat(anchorValue);
+        if (Number.isNaN(value)) {
+            return null;
+        }
+        const band = getSelectedFrequencyBand();
+        const dlLO = frequencyState.dlLO;
+        const ulLO = frequencyState.ulLO;
+        const ttf = frequencyState.ttf;
+        const state = { ifDL: null, rfDL: null, rfUL: null, ifUL: null };
+        switch (anchorKey) {
+            case 'rfDL':
+                state.rfDL = value;
+                state.ifDL = computeIfFromRf(value, dlLO, band);
+                state.rfUL = value + ttf;
+                state.ifUL = state.rfUL - ulLO;
+                break;
+            case 'rfUL':
+                state.rfUL = value;
+                state.rfDL = value - ttf;
+                state.ifDL = computeIfFromRf(state.rfDL, dlLO, band);
+                state.ifUL = value - ulLO;
+                break;
+            case 'ifUL':
+                state.ifUL = value;
+                state.rfUL = value + ulLO;
+                state.rfDL = state.rfUL - ttf;
+                state.ifDL = computeIfFromRf(state.rfDL, dlLO, band);
+                break;
+            case 'ifDL':
+            default:
+                state.ifDL = value;
+                state.rfDL = computeRfFromIf(value, dlLO, band);
+                state.rfUL = state.rfDL + ttf;
+                state.ifUL = state.rfUL - ulLO;
+                break;
+        }
+        const valid = SIGNAL_FREQUENCY_FIELDS.every(field => Number.isFinite(state[field.key]));
+        return valid ? state : null;
+    }
+
+    function serializeSignals() {
+        return signals.map(signal => ({
+            name: signal.name,
+            anchor: signal.anchor,
+            anchorValue: signal.anchorValue,
+            frequencies: { ...signal.frequencies },
+            bandwidth: Number.isFinite(signal.bandwidth) ? signal.bandwidth : null,
+            metadata: signal.metadata
+        }));
+    }
+
+    function serializeEngagements() {
+        return engagements.map(entry => ({
+            signal: entry.signal,
+            startTime: entry.startTime,
+            stopTime: entry.stopTime,
+            effect: entry.effect,
+            probe: !!entry.probe,
+            probeType: entry.probeType || '',
+            status: normalizeEngagementStatus(entry.status, entry.probe),
+            pwr: entry.pwr ?? null,
+            offset: entry.offset ?? null,
+            selectedTemplate: entry.selectedTemplate || '',
+            createdAt: entry.createdAt || new Date().toISOString()
+        }));
+    }
+
+    function restoreSignals(payload) {
+        signals = [];
+        signalKeywordOptions = [];
+        signalIdCounter = 1;
+        if (Array.isArray(payload)) {
+            payload.forEach(entry => {
+                const name = (entry.name || '').trim();
+                if (!name) {
+                    return;
+                }
+                const frequencies = {};
+                let valid = true;
+                SIGNAL_FREQUENCY_FIELDS.forEach(field => {
+                    const parsed = parseFloat(entry.frequencies ? entry.frequencies[field.key] : undefined);
+                    if (Number.isNaN(parsed)) {
+                        valid = false;
+                    } else {
+                        frequencies[field.key] = parsed;
+                    }
+                });
+                if (!valid) {
+                    return;
+                }
+                const anchor = SIGNAL_ANCHOR_OPTIONS.some(option => option.key === entry.anchor) ? entry.anchor : 'ifDL';
+                const anchorValue = Number.isFinite(parseFloat(entry.anchorValue))
+                    ? parseFloat(entry.anchorValue)
+                    : frequencies[anchor];
+                const bandwidth = Number.isFinite(parseFloat(entry.bandwidth)) ? parseFloat(entry.bandwidth) : null;
+                signals.push({
+                    id: signalIdCounter++,
+                    name,
+                    anchor,
+                    anchorValue,
+                    frequencies,
+                    bandwidth,
+                    metadata: entry.metadata || null
+                });
+            });
+        }
+        renderSignalList();
+        updateSignalKeywordOptions();
+    }
+
+    function restoreEngagements(payload) {
+        engagements = [];
+        engagementIdCounter = 1;
+        if (Array.isArray(payload)) {
+            payload.forEach(entry => {
+                const signal = (entry.signal || '').trim();
+                if (!signal) {
+                    return;
+                }
+                engagements.push({
+                    id: engagementIdCounter++,
+                    signal,
+                    startTime: (entry.startTime || '').toString(),
+                    stopTime: (entry.stopTime || '').toString(),
+                    effect: (entry.effect || '').toString(),
+                    probe: !!entry.probe,
+                    probeType: !!entry.probe
+                        ? (['CW', 'MOD'].includes((entry.probeType || '').toString().toUpperCase())
+                            ? (entry.probeType || '').toString().toUpperCase()
+                            : 'CW')
+                        : '',
+                    status: normalizeEngagementStatus(
+                        entry.status || (entry.active ? 'active' : 'inactive'),
+                        !!entry.probe
+                    ),
+                    pwr: entry.pwr ?? null,
+                    offset: entry.offset ?? null,
+                    selectedTemplate: (entry.selectedTemplate || '').toString(),
+                    selectedTemplatePreview: '',
+                    createdAt: entry.createdAt || new Date().toISOString()
+                });
+            });
+            engagements = engagements.filter(entry => !!getSignalByName(entry.signal));
+            engagements.forEach(entry => {
+                if (entry.selectedTemplate) {
+                    setEngagementTemplate(entry, entry.selectedTemplate);
+                }
+            });
+        }
+        renderEngagementSignalOptions();
+        renderEngagementList();
+    }
+
+    function formatTimestamp(isoString) {
+        if (!isoString) {
+            return new Date().toLocaleString();
+        }
+        const date = new Date(isoString);
+        if (Number.isNaN(date.getTime())) {
+            return isoString || '';
+        }
+        return date.toLocaleString();
+    }
+
+    function exportLog() {
+        if (!phraseLog.length) {
+            setSessionStatus('No log entries to export', true);
+            return;
+        }
+        const lines = phraseLog.map(entry => `[${formatTimestamp(entry.timestamp)}] ${entry.text}`);
+        const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        link.download = `c2_phrase_log_${timestamp}.txt`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        setSessionStatus('Log exported');
+    }
+
+    function copyText() {
+        const text = document.getElementById('output-box').innerText || '';
+        appendToLog(text);
+        copyStringToClipboard(text, (success) => toggleCopyState(success));
+    }
+
+    function copyStringToClipboard(text, callback) {
+        if (!text) {
+            callback(false);
+            return;
+        }
+        if (!navigator.clipboard) {
+            fallbackCopyString(text, callback);
+            return;
+        }
+        navigator.clipboard
+            .writeText(text)
+            .then(() => callback(true))
+            .catch(() => fallbackCopyString(text, callback));
+    }
+
+    function fallbackCopyString(text, callback) {
+        const tempArea = document.createElement('textarea');
+        tempArea.value = text;
+        tempArea.style.position = 'fixed';
+        tempArea.style.opacity = '0';
+        document.body.appendChild(tempArea);
+        tempArea.select();
+        const success = document.execCommand('copy');
+        document.body.removeChild(tempArea);
+        callback(success);
+    }
+
+    function toggleCopyState(success) {
+        const btn = document.querySelector('.copy-btn');
+        const originalText = btn.innerText;
+        btn.innerText = success ? 'COPIED!' : 'COPY FAILED';
+        setTimeout(() => btn.innerText = originalText, 1200);
+    }
+
+    function getAllResolvedPhrases() {
+        if (!templates.length) {
+            return [];
+        }
+        return templates.map(tpl => ({
+            category: tpl.category || DEFAULT_TEMPLATE_CATEGORY,
+            text: resolveTemplateText(tpl.text)
+        }));
+    }
+
+    function openPhraseModal() {
+        const modal = document.getElementById('phrase-modal');
+        const list = document.getElementById('phrase-list');
+        if (!modal || !list) {
+            return;
+        }
+        const phrases = getAllResolvedPhrases();
+        list.innerHTML = '';
+        if (!phrases.length) {
+            const empty = document.createElement('p');
+            empty.className = 'hint';
+            empty.textContent = 'Add templates and fill in placeholders to preview phrases.';
+            list.appendChild(empty);
+        } else {
+            phrases.forEach(entry => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'phrase-item';
+                const cat = document.createElement('div');
+                cat.className = 'phrase-category';
+                cat.textContent = entry.category;
+                const text = document.createElement('div');
+                text.className = 'phrase-text';
+                text.textContent = entry.text;
+                btn.appendChild(cat);
+                btn.appendChild(text);
+                btn.addEventListener('click', () => copyPhraseFromList(entry.text, btn));
+                list.appendChild(btn);
+            });
+        }
+        modal.classList.add('open');
+        modal.setAttribute('aria-hidden', 'false');
+    }
+
+    function closePhraseModal() {
+        const modal = document.getElementById('phrase-modal');
+        if (!modal) {
+            return;
+        }
+        modal.classList.remove('open');
+        modal.setAttribute('aria-hidden', 'true');
+    }
+
+    function copyPhraseFromList(text, element) {
+        const cleaned = (text || '').trim();
+        if (!cleaned) {
+            return;
+        }
+        appendToLog(cleaned);
+        copyStringToClipboard(cleaned, (success) => highlightPhraseCopyState(element, success));
+    }
+
+    function highlightPhraseCopyState(element, success) {
+        if (!element) {
+            return;
+        }
+        element.classList.remove('phrase-item-success', 'phrase-item-fail');
+        element.classList.add(success ? 'phrase-item-success' : 'phrase-item-fail');
+        setTimeout(() => {
+            element.classList.remove('phrase-item-success', 'phrase-item-fail');
+        }, 900);
+    }
+
+    initFrequencyPanel();
+    saveConfig();
+    renderLog();
+    renderSignalList();
+    renderEngagementSignalOptions();
+    renderEngagementList();
+    renderCapabilityBoards();
+    handleSignalBandwidthToggle();
+    handleEngagementProbeToggle();
+    const timelineWindowSelect = document.getElementById('timeline-window-hours');
+    if (timelineWindowSelect) {
+        timelineWindowSelect.value = String(timelineWindowHours);
+    }
+    initSideFrameResize();
+    initTopClock();
+
+    document.addEventListener('click', (event) => {
+        const panel = document.getElementById('clock-config-panel');
+        const tz2Btn = document.getElementById('clock-zone-tz2');
+        const tz3Btn = document.getElementById('clock-zone-tz3');
+        if (!panel || panel.classList.contains('hidden')) {
+            return;
+        }
+        if (panel.contains(event.target) || (tz2Btn && tz2Btn.contains(event.target)) || (tz3Btn && tz3Btn.contains(event.target))) {
+            return;
+        }
+        closeClockConfig();
+    });
+
+    const phraseModal = document.getElementById('phrase-modal');
+    if (phraseModal) {
+        phraseModal.addEventListener('click', (event) => {
+            if (event.target === phraseModal) {
+                closePhraseModal();
+            }
+        });
+    }
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            closePhraseModal();
+        }
+    });
+</script>
+
+</body>
+</html>

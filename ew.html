@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAT-OPS | Persistent Mission Control</title>
+    <style>
+        :root {
+            --bg-color: #0d1117; --card-bg: #161b22; --text-main: #c9d1d9;
+            --accent: #58a6ff; --danger: #f85149; --warning: #d29922;
+            --success: #3fb950; --border: #30363d;
+        }
+
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: var(--bg-color); color: var(--text-main);
+            margin: 0; padding: 15px; display: flex; flex-direction: column;
+            height: 100vh; box-sizing: border-box; font-size: 14px; overflow-x: hidden;
+        }
+
+        /* Header & Timers */
+        .header-strip {
+            display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr;
+            background: #010409; padding: 10px 20px; border: 1px solid var(--accent);
+            margin-bottom: 12px; border-radius: 4px; align-items: center;
+        }
+
+        .timer-box { text-align: center; border-left: 1px solid var(--border); }
+        .timer-label { font-size: 0.65rem; text-transform: uppercase; color: var(--accent); }
+        .timer-val { font-size: 1.1rem; font-weight: bold; font-variant-numeric: tabular-nums; }
+
+        /* Dashboard Layout */
+        .dashboard {
+            display: grid; grid-template-columns: 1fr 1.5fr;
+            grid-template-rows: auto 1fr auto; gap: 10px; flex-grow: 1; min-width: 0;
+        }
+
+        .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 4px; padding: 10px; overflow-y: auto; min-width: 0; box-sizing: border-box; }
+        .card-header {
+            font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid var(--border);
+            padding-bottom: 4px; color: var(--accent); display: flex; justify-content: space-between;
+        }
+
+        /* Tables & Inputs */
+        table { width: 100%; border-collapse: collapse; }
+        th, td { text-align: left; padding: 4px; border-bottom: 1px solid var(--border); }
+        input, select {
+            background: #0d1117; border: 1px solid var(--border); color: #58a6ff;
+            padding: 4px; border-radius: 2px; width: 100%; box-sizing: border-box;
+        }
+
+        .antenna-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; grid-column: span 2; }
+        .antenna-rf-table th, .antenna-rf-table td { padding: 3px; font-size: 0.75rem; }
+        .antenna-rf-table input { font-size: 0.78rem; padding: 3px; }
+        .lower-row { grid-column: span 2; display: flex; gap: 0; min-height: 260px; min-width: 0; }
+        .lower-panel { min-width: 0; }
+        #eng-table, #ns-table { table-layout: fixed; width: 100%; }
+        #eng-table th, #eng-table td, #ns-table th, #ns-table td { font-size: 0.74rem; padding: 3px; }
+        .lower-resizer {
+            flex: 0 0 10px;
+            cursor: col-resize;
+            position: relative;
+            user-select: none;
+            background: transparent;
+        }
+        .lower-resizer::before {
+            content: '';
+            position: absolute;
+            left: 4px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--border);
+            border-radius: 2px;
+        }
+        .lower-resizer:hover::before { background: var(--accent); }
+        body.resizing-lower, body.resizing-lower * { cursor: col-resize !important; user-select: none !important; }
+        @media (max-width: 900px) {
+            .lower-row { flex-direction: column; gap: 10px; }
+            .lower-resizer { display: none; }
+            .lower-panel { min-width: 0; }
+        }
+        
+        .btn {
+            background: transparent; border: 1px solid var(--accent); color: var(--accent);
+            padding: 4px 8px; cursor: pointer; font-size: 0.7rem; text-transform: uppercase;
+        }
+        .btn:hover { background: var(--accent); color: white; }
+        .btn-danger { border-color: var(--danger); color: var(--danger); }
+        .btn-danger:hover { background: var(--danger); color: white; }
+    </style>
+</head>
+<body onload="loadFromStorage(); initLowerRowResize()">
+
+    <div class="header-strip">
+        <div>
+            <div style="font-weight: bold; letter-spacing: 1px;">SAT-OPS COMMAND</div>
+            <div id="utc-clock" style="color: var(--accent); font-size: 0.8rem;">00:00:00 UTC</div>
+        </div>
+        <div class="timer-box"><div class="timer-label">Next Engagement</div><div id="next-eng-timer" class="timer-val">--:--:--</div></div>
+        <div class="timer-box"><div class="timer-label" style="color: var(--danger);">No-Shoot Window</div><div id="next-ns-timer" class="timer-val">--:--:--</div></div>
+        <div class="timer-box" style="display: flex; gap: 5px; justify-content: center; border: none;">
+            <button class="btn" onclick="window.open('ew_power_log.html', '_blank')">Power Log</button>
+            <button class="btn" onclick="exportSession()">Save File</button>
+            <button class="btn" onclick="document.getElementById('importFile').click()">Load File</button>
+            <input type="file" id="importFile" style="display:none" onchange="importSession(event)">
+        </div>
+    </div>
+
+    <div class="dashboard">
+        <div class="antenna-row">
+            <div class="card" id="ant-1">
+                <div class="card-header">ANTENNA 01</div>
+                <input type="text" data-key="ant1-id" placeholder="ID (e.g. ALPHA)">
+                <select data-key="ant1-band"><option>C</option><option>X</option><option>Ku</option><option>Ka</option></select>
+                <table class="antenna-rf-table" style="margin-top:8px;">
+                    <thead><tr><th>Sat</th><th>Pol</th><th>XPDR</th></tr></thead>
+                    <tbody id="sat-body-ant1"></tbody>
+                </table>
+                <button class="btn" style="margin-top:5px" onclick="addRow('sat-body-ant1')">+ Asset</button>
+            </div>
+            <div class="card" id="ant-2">
+                <div class="card-header">ANTENNA 02</div>
+                <input type="text" data-key="ant2-id" placeholder="ID (e.g. BRAVO)">
+                <select data-key="ant2-band"><option>C</option><option>X</option><option>Ku</option><option>Ka</option></select>
+                <table class="antenna-rf-table" style="margin-top:8px;">
+                    <thead><tr><th>Sat</th><th>Pol</th><th>XPDR</th></tr></thead>
+                    <tbody id="sat-body-ant2"></tbody>
+                </table>
+                <button class="btn" style="margin-top:5px" onclick="addRow('sat-body-ant2')">+ Asset</button>
+            </div>
+            <div class="card" id="ant-3">
+                <div class="card-header">ANTENNA 03</div>
+                <input type="text" data-key="ant3-id" placeholder="ID (e.g. CHARLIE)">
+                <select data-key="ant3-band"><option>C</option><option>X</option><option>Ku</option><option>Ka</option></select>
+                <table class="antenna-rf-table" style="margin-top:8px;">
+                    <thead><tr><th>Sat</th><th>Pol</th><th>XPDR</th></tr></thead>
+                    <tbody id="sat-body-ant3"></tbody>
+                </table>
+                <button class="btn" style="margin-top:5px" onclick="addRow('sat-body-ant3')">+ Asset</button>
+            </div>
+        </div>
+
+        <div class="lower-row" id="lower-row">
+            <div class="card lower-panel" id="eng-panel" style="flex: 1 1 55%;">
+                <div class="card-header">ENGAGEMENTS</div>
+                <table id="eng-table">
+                    <thead><tr><th>SOI</th><th>Effect</th><th>IF-DL (MHz)</th><th>Start</th><th>Stop</th><th>Status</th></tr></thead>
+                    <tbody id="eng-body"></tbody>
+                </table>
+                <button class="btn" style="margin-top:5px" onclick="addRow('eng-body')">+ Event</button>
+            </div>
+
+            <div id="lower-resizer" class="lower-resizer" aria-hidden="true"></div>
+
+            <div class="card lower-panel" id="ns-panel" style="flex: 1 1 45%;">
+                <div class="card-header" style="color: var(--danger);">NO-SHOOT WINDOWS</div>
+                <table id="ns-table">
+                    <thead><tr><th>Antenna</th><th>Start</th><th>Stop</th><th>dBW</th></tr></thead>
+                    <tbody id="ns-body"></tbody>
+                </table>
+                <button class="btn btn-danger" style="margin-top:5px" onclick="addRow('ns-body')">+ Constraint</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- CORE LOGIC ---
+        function isAntennaSatTable(tableId) {
+            return tableId === 'sat-body-ant1' || tableId === 'sat-body-ant2' || tableId === 'sat-body-ant3';
+        }
+
+        function addRow(tableId, data = ['', '', '', '']) {
+            const table = document.getElementById(tableId);
+            const row = table.insertRow();
+            if (isAntennaSatTable(tableId)) {
+                row.innerHTML = `<td><input type="text" value="${data[0] || ''}"></td><td><input type="text" value="${data[1] || ''}"></td><td><input type="text" value="${data[2] || ''}"></td>`;
+            } else if (tableId === 'eng-body') {
+                const normalizeEngData = (raw) => {
+                    if (!Array.isArray(raw)) {
+                        return { soi: '', effect: '', ifdl: '', start: '', stop: '', status: 'tasked' };
+                    }
+                    if (raw.length >= 6) {
+                        return {
+                            soi: raw[0] || '',
+                            effect: raw[1] || '',
+                            ifdl: raw[2] || '',
+                            start: extractTimeString(raw[3]),
+                            stop: extractTimeString(raw[4]),
+                            status: raw[5] || 'tasked'
+                        };
+                    }
+                    if (raw.length >= 4) {
+                        return {
+                            soi: raw[0] || '',
+                            effect: raw[1] || '',
+                            ifdl: raw[2] || '',
+                            start: extractTimeString(raw[3]),
+                            stop: '',
+                            status: 'tasked'
+                        };
+                    }
+                    return {
+                        soi: raw[0] || '',
+                        effect: '',
+                        ifdl: '',
+                        start: extractTimeString(raw[1]),
+                        stop: '',
+                        status: 'tasked'
+                    };
+                };
+                const eng = normalizeEngData(data);
+                const normalizedStatus = ['tasked', 'ready', 'active', 'inactive'].includes((eng.status || '').toLowerCase())
+                    ? eng.status.toLowerCase()
+                    : 'tasked';
+                row.innerHTML = `<td><input type="text" value="${eng.soi}"></td><td><input type="text" value="${eng.effect}"></td><td><input type="number" step="0.001" value="${eng.ifdl}"></td><td><input type="text" class="eng-time" inputmode="numeric" placeholder="HH:MM" title="Zulu time HH:MM (24h)" value="${eng.start}"></td><td><input type="text" inputmode="numeric" placeholder="HH:MM" title="Zulu time HH:MM (24h)" value="${eng.stop}"></td><td><select><option value="tasked">TASKED</option><option value="ready">READY</option><option value="active">ACTIVE</option><option value="inactive">INACTIVE</option></select></td>`;
+                const statusSelect = row.querySelector('select');
+                if (statusSelect) {
+                    statusSelect.value = normalizedStatus;
+                }
+            } else if (tableId === 'ns-body') {
+                row.innerHTML = `<td><input type="text" value="${data[0] || ''}"></td><td><input type="text" class="ns-time" inputmode="numeric" placeholder="HH:MM" title="Zulu time HH:MM (24h)" value="${data[1] || ''}"></td><td><input type="text" inputmode="numeric" placeholder="HH:MM" title="Zulu time HH:MM (24h)" value="${data[2] || ''}"></td><td><input type="number" step="0.1" value="${data[3] || ''}"></td>`;
+            }
+            row.querySelectorAll('input, select').forEach(el => el.addEventListener('input', autoSave));
+        }
+
+        function extractTimeString(raw) {
+            let value = (raw || '').toString().trim().toUpperCase();
+            if (!value) return '';
+            if (value.includes('T')) {
+                const parts = value.split('T');
+                value = (parts[1] || '').trim();
+            }
+            value = value.replace(/Z$/, '');
+            if (/^\d{4}$/.test(value)) {
+                value = `${value.slice(0, 2)}:${value.slice(2, 4)}`;
+            }
+            const match = value.match(/^(\d{1,2}):(\d{2})/);
+            if (!match) return '';
+            const hh = parseInt(match[1], 10);
+            const mm = parseInt(match[2], 10);
+            if (Number.isNaN(hh) || Number.isNaN(mm) || hh < 0 || hh > 23 || mm < 0 || mm > 59) {
+                return '';
+            }
+            return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+        }
+
+        function normalizeNoShootRow(data) {
+            if (!Array.isArray(data)) {
+                return ['', '', '', ''];
+            }
+            const second = (data[1] || '').toString();
+            const third = (data[2] || '').toString();
+            const legacyFormat = second.includes('T') || third.includes('T');
+            if (legacyFormat) {
+                return [
+                    (data[3] || '').toString(),
+                    extractTimeString(data[1]),
+                    extractTimeString(data[2]),
+                    ''
+                ];
+            }
+            return [
+                (data[0] || '').toString(),
+                extractTimeString(data[1]),
+                extractTimeString(data[2]),
+                (data[3] || '').toString()
+            ];
+        }
+
+        // --- PERSISTENCE ---
+        function autoSave() {
+            const satByAntenna = {
+                ant1: Array.from(document.getElementById('sat-body-ant1').rows).map(r => Array.from(r.querySelectorAll('input')).map(i => i.value)),
+                ant2: Array.from(document.getElementById('sat-body-ant2').rows).map(r => Array.from(r.querySelectorAll('input')).map(i => i.value)),
+                ant3: Array.from(document.getElementById('sat-body-ant3').rows).map(r => Array.from(r.querySelectorAll('input')).map(i => i.value))
+            };
+            const state = {
+                antennas: Array.from(document.querySelectorAll('[data-key]')).map(el => ({key: el.getAttribute('data-key'), val: el.value})),
+                satsByAntenna: satByAntenna,
+                engs: Array.from(document.getElementById('eng-body').rows).map(r => Array.from(r.querySelectorAll('input, select')).map(i => i.value)),
+                noShoots: Array.from(document.getElementById('ns-body').rows).map(r => Array.from(r.querySelectorAll('input')).map(i => i.value))
+            };
+            localStorage.setItem('satOpsState', JSON.stringify(state));
+        }
+
+        function loadFromStorage(externalData = null) {
+            const saved = externalData || JSON.parse(localStorage.getItem('satOpsState'));
+            if (!saved) return;
+            
+            // Clear existing
+            document.getElementById('sat-body-ant1').innerHTML = '';
+            document.getElementById('sat-body-ant2').innerHTML = '';
+            document.getElementById('sat-body-ant3').innerHTML = '';
+            document.getElementById('eng-body').innerHTML = '';
+            document.getElementById('ns-body').innerHTML = '';
+
+            (saved.antennas || []).forEach(a => { const el = document.querySelector(`[data-key="${a.key}"]`); if(el) el.value = a.val; });
+
+            if (saved.satsByAntenna && typeof saved.satsByAntenna === 'object') {
+                (saved.satsByAntenna.ant1 || []).forEach(d => addRow('sat-body-ant1', d));
+                (saved.satsByAntenna.ant2 || []).forEach(d => addRow('sat-body-ant2', d));
+                (saved.satsByAntenna.ant3 || []).forEach(d => addRow('sat-body-ant3', d));
+            } else if (Array.isArray(saved.sats)) {
+                // Backward compatibility for older sessions with a single RF table.
+                saved.sats.forEach(d => {
+                    const normalized = [d[0] || '', d[2] || d[1] || '', d[3] || d[2] || ''];
+                    addRow('sat-body-ant1', normalized);
+                });
+            }
+
+            (saved.engs || []).forEach(d => addRow('eng-body', d));
+            (saved.noShoots || []).forEach(d => addRow('ns-body', normalizeNoShootRow(d)));
+        }
+
+        // --- FILE OPS ---
+        function exportSession() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(localStorage.getItem('satOpsState'));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "sat_ops_session.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+
+        function importSession(event) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const data = JSON.parse(e.target.result);
+                loadFromStorage(data);
+                autoSave();
+            };
+            reader.readAsText(event.target.files[0]);
+        }
+
+        // --- TIMERS ---
+        function updateUI() {
+            const now = new Date();
+            document.getElementById('utc-clock').innerText = now.toISOString().replace('T',' ').split('.')[0] + " UTC";
+
+            const parseTodayTime = (value) => {
+                const text = extractTimeString(value);
+                if (!text) return null;
+                const parts = text.split(':');
+                const hh = parseInt(parts[0], 10);
+                const mm = parseInt(parts[1], 10);
+                if (Number.isNaN(hh) || Number.isNaN(mm)) return null;
+                const candidate = new Date(Date.UTC(
+                    now.getUTCFullYear(),
+                    now.getUTCMonth(),
+                    now.getUTCDate(),
+                    hh,
+                    mm,
+                    0,
+                    0
+                ));
+                return candidate;
+            };
+
+            const getNext = (selector) => Array.from(document.querySelectorAll(selector))
+                .map(el => parseTodayTime(el.value)).filter(d => d && d > now).sort((a,b) => a-b)[0];
+
+            const getNextNoShootStart = () => Array.from(document.querySelectorAll('.ns-time'))
+                .map(el => parseTodayTime(el.value))
+                .filter(d => d && d > now)
+                .sort((a,b) => a-b)[0];
+
+            const nextEng = getNext('.eng-time');
+            const nextNS = getNextNoShootStart();
+
+            document.getElementById('next-eng-timer').innerText = nextEng ? formatDiff(nextEng - now) : "--:--:--";
+            document.getElementById('next-ns-timer').innerText = nextNS ? formatDiff(nextNS - now) : "--:--:--";
+        }
+
+        function formatDiff(ms) {
+            const s = Math.floor(ms/1000);
+            return `${Math.floor(s/3600).toString().padStart(2,'0')}:${Math.floor((s%3600)/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
+        }
+
+        function initLowerRowResize() {
+            const container = document.getElementById('lower-row');
+            const left = document.getElementById('eng-panel');
+            const right = document.getElementById('ns-panel');
+            const resizer = document.getElementById('lower-resizer');
+            if (!container || !left || !right || !resizer) return;
+
+            let startX = 0;
+            let startLeft = 0;
+            let startRight = 0;
+
+            const stop = () => {
+                document.body.classList.remove('resizing-lower');
+                window.removeEventListener('mousemove', onMove);
+                window.removeEventListener('mouseup', stop);
+            };
+
+            const onMove = (event) => {
+                const total = container.getBoundingClientRect().width - resizer.getBoundingClientRect().width - 2;
+                const min = 180;
+                const dx = event.clientX - startX;
+                let nextLeft = startLeft + dx;
+                let nextRight = startRight - dx;
+                if (nextLeft < min) {
+                    nextLeft = min;
+                    nextRight = total - min;
+                }
+                if (nextRight < min) {
+                    nextRight = min;
+                    nextLeft = total - min;
+                }
+                left.style.flex = `0 0 ${nextLeft}px`;
+                right.style.flex = `0 0 ${nextRight}px`;
+            };
+
+            resizer.addEventListener('mousedown', (event) => {
+                if (window.matchMedia('(max-width: 900px)').matches) return;
+                event.preventDefault();
+                startX = event.clientX;
+                startLeft = left.getBoundingClientRect().width;
+                startRight = right.getBoundingClientRect().width;
+                document.body.classList.add('resizing-lower');
+                window.addEventListener('mousemove', onMove);
+                window.addEventListener('mouseup', stop);
+            });
+        }
+
+        setInterval(updateUI, 1000);
+        document.querySelectorAll('input, select').forEach(el => el.addEventListener('input', autoSave));
+    </script>
+</body>
+</html>
