@@ -102,6 +102,25 @@
             table-layout: fixed;
         }
 
+        #power-log-table th:nth-child(3), #power-log-table td:nth-child(3) {
+            width: 56px;
+        }
+        #power-log-table th:nth-child(10), #power-log-table td:nth-child(10) {
+            width: 136px;
+        }
+        #power-log-table th:nth-child(11), #power-log-table td:nth-child(11) {
+            width: 98px;
+        }
+        #power-log-table th:nth-child(12), #power-log-table td:nth-child(12) {
+            width: 94px;
+        }
+        #power-log-table th:nth-child(13), #power-log-table td:nth-child(13) {
+            width: 70px;
+        }
+        #power-log-table th:nth-child(14), #power-log-table td:nth-child(14) {
+            width: 100px;
+        }
+
         th, td {
             text-align: left;
             padding: 4px;
@@ -138,6 +157,38 @@
             margin-top: 6px;
         }
 
+        .value-muted { color: #5e6a77; font-weight: bold; }
+        .dialog-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.55);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+            padding: 12px;
+        }
+        .dialog-backdrop.open { display: flex; }
+        .dialog-card {
+            width: min(980px, 100%);
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 12px;
+        }
+        .dialog-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .dialog-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
         @media (max-width: 1100px) {
             .header-strip { grid-template-columns: 1fr; }
             .timer-box { border-left: none; border-top: 1px solid var(--border); padding-top: 8px; }
@@ -164,28 +215,24 @@
 
     <div class="layout">
         <div class="card">
-            <div class="card-header">CALCULATION CONFIG</div>
-            <div class="config-grid">
-                <div>
-                    <label for="antennaType">Antenna Type</label>
-                    <select id="antennaType"></select>
-                </div>
-                <div>
-                    <label for="probeChannelPower">ANB Probe Channel Power</label>
-                    <div style="display:grid; grid-template-columns: 1fr 90px; gap:6px;">
-                        <input id="probeChannelPower" type="number" step="any" value="-45">
-                        <select id="probeChannelPowerUnit">
-                            <option value="dBm" selected>dBm</option>
-                            <option value="dBW">dBW</option>
-                        </select>
-                    </div>
-                </div>
-                <div>
-                    <label for="probeEirpRef">ANB Probe EIRP Reference</label>
-                    <input id="probeEirpRef" type="number" step="any" value="50" title="dBW">
-                </div>
+            <div class="card-header">
+                <span>CALCULATION CONFIG</span>
+                <button class="btn" type="button" onclick="openProbeWindow()">Add Probe</button>
             </div>
-            <div class="hint">EIRP is computed per row as: (TPO converted to dBW) + Passive Gain. Attn and Modem are logged for reference only. EEEIRP is computed as: Probe EIRP + (Signal Channel Power - Probe Channel Power).</div>
+            <div class="config-grid">
+            </div>
+            <div class="hint">EIRP is computed per row as: (TPO converted to dBW) + Passive Gain. EEEIRP uses an ANB probe with matching TXPR. If no probe exists for that TXPR, EEEIRP stays grayed out.</div>
+            <table style="margin-top:8px;">
+                <thead>
+                    <tr>
+                        <th>TXPR</th>
+                        <th>Antenna Type</th>
+                        <th>Channel Pwr</th>
+                        <th>EIRP (dBW)</th>
+                    </tr>
+                </thead>
+                <tbody id="probe-config-body"></tbody>
+            </table>
         </div>
 
         <div class="card">
@@ -193,23 +240,75 @@
                 <span>POWER LOG</span>
                 <button class="btn" onclick="addPowerRow()">+ Row</button>
             </div>
-            <table>
+            <table id="power-log-table">
                 <thead>
                     <tr>
                         <th>SOI</th>
                         <th>Antenna</th>
                         <th>Band</th>
+                        <th>Satellite</th>
+                        <th>TTF (MHz)</th>
                         <th>Attn (dB)</th>
                         <th>Modem (dB)</th>
                         <th>Channel Pwr</th>
                         <th>SNR (dB)</th>
                         <th>TPO</th>
+                        <th>Passive Gain (dB)</th>
                         <th>EIRP (dBW)</th>
+                        <th>TXPR</th>
                         <th>EEEIRP (dBW)</th>
                         <th></th>
                     </tr>
                 </thead>
                 <tbody id="power-log-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="probe-window" class="dialog-backdrop" onclick="handleProbeBackdropClick(event)">
+        <div class="dialog-card">
+            <div class="dialog-header">
+                <strong>ANB Probe Window</strong>
+                <button class="btn btn-danger" type="button" onclick="closeProbeWindow()">Close</button>
+            </div>
+            <div class="dialog-grid">
+                <div>
+                    <label for="probe-antenna-type">Antenna Type</label>
+                    <select id="probe-antenna-type"></select>
+                </div>
+                <div>
+                    <label for="probe-channel-power">ANB Channel Pwr</label>
+                    <div style="display:grid; grid-template-columns: 1fr 84px; gap:6px;">
+                        <input id="probe-channel-power" type="number" step="any" value="-45">
+                        <select id="probe-channel-unit">
+                            <option value="dBm" selected>dBm</option>
+                            <option value="dBW">dBW</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label for="probe-eirp-ref">ANB EIRP (dBW)</label>
+                    <input id="probe-eirp-ref" type="number" step="any" value="50">
+                </div>
+                <div>
+                    <label for="probe-txpr">TXPR</label>
+                    <select id="probe-txpr"></select>
+                </div>
+            </div>
+            <div style="margin-bottom:10px;">
+                <button class="btn" type="button" onclick="addProbeEntry()">Add Probe Entry</button>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>TXPR</th>
+                        <th>Antenna Type</th>
+                        <th>Channel Pwr</th>
+                        <th>EIRP (dBW)</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="probe-body"></tbody>
             </table>
         </div>
     </div>
@@ -228,12 +327,15 @@
 
         let ewData = {
             sois: [],
+            txprs: [],
+            txprBySoi: {},
             antennas: [
-                { id: 'ANT-1', band: 'Ku' },
-                { id: 'ANT-2', band: 'Ku' },
-                { id: 'ANT-3', band: 'Ku' }
+                { id: 'ANT-1', band: 'Ku', satellite: '', ttf: '' },
+                { id: 'ANT-2', band: 'Ku', satellite: '', ttf: '' },
+                { id: 'ANT-3', band: 'Ku', satellite: '', ttf: '' }
             ]
         };
+        let probeEntries = [];
 
         function wattsToDbw(watts) {
             return 10 * Math.log10(watts);
@@ -257,10 +359,12 @@
             if (!saved || typeof saved !== 'object') {
                 return {
                     sois: [],
+                    txprs: [],
+                    txprBySoi: {},
                     antennas: [
-                        { id: 'ANT-1', band: 'Ku' },
-                        { id: 'ANT-2', band: 'Ku' },
-                        { id: 'ANT-3', band: 'Ku' }
+                        { id: 'ANT-1', band: 'Ku', satellite: '', ttf: '' },
+                        { id: 'ANT-2', band: 'Ku', satellite: '', ttf: '' },
+                        { id: 'ANT-3', band: 'Ku', satellite: '', ttf: '' }
                     ]
                 };
             }
@@ -276,42 +380,60 @@
                 const band = hit && hit.val ? String(hit.val).trim() : 'Ku';
                 return ['C', 'X', 'Ku', 'Ka'].includes(band) ? band : 'Ku';
             };
+            const antennaSatellite = (idx) => {
+                const key = `ant${idx}-sat`;
+                const hit = (saved.antennas || []).find(a => a && a.key === key);
+                return hit && hit.val ? String(hit.val).trim() : '';
+            };
+            const antennaTtf = (idx) => {
+                const key = `ant${idx}-ttf`;
+                const hit = (saved.antennas || []).find(a => a && a.key === key);
+                const ttf = hit && hit.val ? String(hit.val).trim() : '';
+                return ttf;
+            };
 
-            const antennas = [1, 2, 3].map(i => ({ id: antennaId(i), band: antennaBand(i) }));
+            const antennas = [1, 2, 3].map(i => ({
+                id: antennaId(i),
+                band: antennaBand(i),
+                satellite: antennaSatellite(i),
+                ttf: antennaTtf(i)
+            }));
 
             const soiSet = new Set();
+            const txprSet = new Set();
+            const txprBySoi = {};
             (saved.engs || []).forEach(row => {
                 const soi = Array.isArray(row) ? String(row[0] || '').trim() : '';
                 if (soi) {
                     soiSet.add(soi);
+                    const txpr = Array.isArray(row) ? String(row[5] || '').trim() : '';
+                    if (txpr) {
+                        txprSet.add(txpr);
+                        txprBySoi[soi] = txpr;
+                    }
                 }
             });
 
             return {
                 sois: Array.from(soiSet),
+                txprs: Array.from(txprSet),
+                txprBySoi,
                 antennas
             };
         }
 
-        function renderAntennaTypeOptions() {
-            const select = document.getElementById('antennaType');
-            const previous = select.value;
+        function populateProbeAntennaTypeOptions(selected = '1.8 m Dish') {
+            const select = document.getElementById('probe-antenna-type');
+            if (!select) return;
             select.innerHTML = '';
-            Object.keys(ANTENNA_GAIN_TABLE).forEach(name => {
+            const options = Object.keys(ANTENNA_GAIN_TABLE);
+            options.forEach(name => {
                 const option = document.createElement('option');
                 option.value = name;
                 option.textContent = name;
                 select.appendChild(option);
             });
-            if (Array.from(select.options).some(o => o.value === previous)) {
-                select.value = previous;
-            } else {
-                select.value = '1.8 m Dish';
-            }
-            select.addEventListener('change', () => {
-                recalcAllRows();
-                autoSavePowerLog();
-            });
+            select.value = options.includes(selected) ? selected : '1.8 m Dish';
         }
 
         function buildSelect(options, selectedValue) {
@@ -333,6 +455,20 @@
             return hit ? hit.band : 'Ku';
         }
 
+        function getSatelliteByAntennaId(antennaId) {
+            const hit = ewData.antennas.find(a => a.id === antennaId);
+            return hit ? (hit.satellite || '') : '';
+        }
+
+        function getTtfByAntennaId(antennaId) {
+            const hit = ewData.antennas.find(a => a.id === antennaId);
+            return hit ? (hit.ttf || '') : '';
+        }
+
+        function getTxprBySoi(soi) {
+            return ewData.txprBySoi && soi ? (ewData.txprBySoi[soi] || '') : '';
+        }
+
         function convertTpoToDbw(value, unit) {
             const v = parseFloat(value);
             if (!Number.isFinite(v)) return null;
@@ -348,10 +484,10 @@
             return unit === 'dBW' ? v : dbmToDbw(v);
         }
 
-        function getProbeChannelDbw() {
-            const probeValue = document.getElementById('probeChannelPower').value;
-            const probeUnit = document.getElementById('probeChannelPowerUnit').value;
-            return convertChannelToDbw(probeValue, probeUnit);
+        function findProbeByTxpr(txpr) {
+            const target = (txpr || '').trim();
+            if (!target) return null;
+            return probeEntries.find(entry => (entry.txpr || '').trim() === target) || null;
         }
 
         function addPowerRow(seed = null) {
@@ -368,6 +504,16 @@
             bandInput.type = 'text';
             bandInput.readOnly = true;
             bandInput.value = getBandByAntennaId(antSel.value);
+
+            const satInput = document.createElement('input');
+            satInput.type = 'text';
+            satInput.readOnly = true;
+            satInput.value = getSatelliteByAntennaId(antSel.value);
+
+            const ttfInput = document.createElement('input');
+            ttfInput.type = 'text';
+            ttfInput.readOnly = true;
+            ttfInput.value = getTtfByAntennaId(antSel.value);
 
             const attnInput = document.createElement('input');
             attnInput.type = 'number';
@@ -398,7 +544,7 @@
 
             const tpoWrap = document.createElement('div');
             tpoWrap.style.display = 'grid';
-            tpoWrap.style.gridTemplateColumns = '1fr 70px';
+            tpoWrap.style.gridTemplateColumns = 'minmax(72px, 1fr) 62px';
             tpoWrap.style.gap = '4px';
             const tpoInput = document.createElement('input');
             tpoInput.type = 'number';
@@ -408,12 +554,21 @@
             tpoWrap.appendChild(tpoInput);
             tpoWrap.appendChild(tpoUnitSel);
 
+            const passiveGainOut = document.createElement('div');
+            passiveGainOut.className = 'mono';
+            passiveGainOut.textContent = '--';
+
             const eirpOut = document.createElement('div');
             eirpOut.className = 'mono value-ok';
             eirpOut.textContent = '--';
 
+            const txprInput = document.createElement('input');
+            txprInput.type = 'text';
+            txprInput.readOnly = true;
+            txprInput.value = seed && seed.txpr !== undefined ? seed.txpr : getTxprBySoi(soiSel.value);
+
             const eeeirpOut = document.createElement('div');
-            eeeirpOut.className = 'mono value-warn';
+            eeeirpOut.className = 'mono value-muted';
             eeeirpOut.textContent = '--';
 
             const removeBtn = document.createElement('button');
@@ -430,12 +585,16 @@
             row.appendChild(td(soiSel));
             row.appendChild(td(antSel));
             row.appendChild(td(bandInput));
+            row.appendChild(td(satInput));
+            row.appendChild(td(ttfInput));
             row.appendChild(td(attnInput));
             row.appendChild(td(modemInput));
             row.appendChild(td(chWrap));
             row.appendChild(td(snrInput));
             row.appendChild(td(tpoWrap));
+            row.appendChild(td(passiveGainOut));
             row.appendChild(td(eirpOut));
+            row.appendChild(td(txprInput));
             row.appendChild(td(eeeirpOut));
             row.appendChild(td(removeBtn));
 
@@ -443,30 +602,37 @@
 
             const recalcRow = () => {
                 bandInput.value = getBandByAntennaId(antSel.value);
-                const antennaType = document.getElementById('antennaType').value;
+                satInput.value = getSatelliteByAntennaId(antSel.value);
+                ttfInput.value = getTtfByAntennaId(antSel.value);
+                txprInput.value = getTxprBySoi(soiSel.value);
+                const matchingProbe = findProbeByTxpr(txprInput.value);
+                const antennaType = matchingProbe && matchingProbe.antennaType
+                    ? matchingProbe.antennaType
+                    : '1.8 m Dish';
                 const band = bandInput.value;
                 const passiveGain = ANTENNA_GAIN_TABLE[antennaType] && Number.isFinite(ANTENNA_GAIN_TABLE[antennaType][band])
                     ? ANTENNA_GAIN_TABLE[antennaType][band]
                     : 0;
                 const tpoDbw = convertTpoToDbw(tpoInput.value, tpoUnitSel.value);
+                passiveGainOut.textContent = formatNumber(passiveGain);
 
                 if (tpoDbw === null) {
                     eirpOut.textContent = '--';
-                    eeeirpOut.textContent = '--';
-                    return;
+                } else {
+                    const eirp = tpoDbw + passiveGain;
+                    eirpOut.textContent = `${formatNumber(eirp)} dBW`;
                 }
 
-                const eirp = tpoDbw + passiveGain;
-                eirpOut.textContent = `${formatNumber(eirp)} dBW`;
-
-                const probeDbw = getProbeChannelDbw();
                 const rowChDbw = convertChannelToDbw(chPowerInput.value, chUnitSel.value);
-                const probeEirpRef = parseFloat(document.getElementById('probeEirpRef').value);
+                const probeDbw = matchingProbe ? convertChannelToDbw(matchingProbe.channelPower, matchingProbe.channelUnit) : null;
+                const probeEirpRef = matchingProbe ? parseFloat(matchingProbe.eirp) : null;
                 if (Number.isFinite(probeDbw) && Number.isFinite(rowChDbw) && Number.isFinite(probeEirpRef)) {
                     const eeeirp = probeEirpRef + (rowChDbw - probeDbw);
                     eeeirpOut.textContent = `${formatNumber(eeeirp)} dBW`;
+                    eeeirpOut.className = 'mono value-warn';
                 } else {
                     eeeirpOut.textContent = '--';
+                    eeeirpOut.className = 'mono value-muted';
                 }
             };
 
@@ -479,11 +645,7 @@
                 chUnitSel,
                 snrInput,
                 tpoInput,
-                tpoUnitSel,
-                document.getElementById('antennaType'),
-                document.getElementById('probeChannelPower'),
-                document.getElementById('probeChannelPowerUnit'),
-                document.getElementById('probeEirpRef')
+                tpoUnitSel
             ].forEach(el => {
                 el.addEventListener('input', () => {
                     recalcRow();
@@ -525,21 +687,21 @@
                 const cells = row.querySelectorAll('td');
                 const soi = cells[0].querySelector('select') ? cells[0].querySelector('select').value : '';
                 const antenna = cells[1].querySelector('select') ? cells[1].querySelector('select').value : '';
-                const attn = cells[3].querySelector('input') ? cells[3].querySelector('input').value : '';
-                const modem = cells[4].querySelector('input') ? cells[4].querySelector('input').value : '';
-                const channelPower = cells[5].querySelector('input') ? cells[5].querySelector('input').value : '';
-                const channelUnit = cells[5].querySelector('select') ? cells[5].querySelector('select').value : 'dBm';
-                const snr = cells[6].querySelector('input') ? cells[6].querySelector('input').value : '';
-                const tpo = cells[7].querySelector('input') ? cells[7].querySelector('input').value : '';
-                const tpoUnit = cells[7].querySelector('select') ? cells[7].querySelector('select').value : 'W';
-                return { soi, antenna, attn, modem, channelPower, channelUnit, snr, tpo, tpoUnit };
+                const satellite = cells[3].querySelector('input') ? cells[3].querySelector('input').value : '';
+                const ttf = cells[4].querySelector('input') ? cells[4].querySelector('input').value : '';
+                const attn = cells[5].querySelector('input') ? cells[5].querySelector('input').value : '';
+                const modem = cells[6].querySelector('input') ? cells[6].querySelector('input').value : '';
+                const channelPower = cells[7].querySelector('input') ? cells[7].querySelector('input').value : '';
+                const channelUnit = cells[7].querySelector('select') ? cells[7].querySelector('select').value : 'dBm';
+                const snr = cells[8].querySelector('input') ? cells[8].querySelector('input').value : '';
+                const tpo = cells[9].querySelector('input') ? cells[9].querySelector('input').value : '';
+                const tpoUnit = cells[9].querySelector('select') ? cells[9].querySelector('select').value : 'W';
+                const txpr = cells[12].querySelector('input') ? cells[12].querySelector('input').value : '';
+                return { soi, antenna, satellite, ttf, attn, modem, channelPower, channelUnit, snr, tpo, tpoUnit, txpr };
             });
 
             const payload = {
-                antennaType: document.getElementById('antennaType').value,
-                probeChannelPower: document.getElementById('probeChannelPower').value,
-                probeChannelPowerUnit: document.getElementById('probeChannelPowerUnit').value,
-                probeEirpRef: document.getElementById('probeEirpRef').value,
+                probes: probeEntries,
                 rows
             };
             localStorage.setItem('ewPowerLogState', JSON.stringify(payload));
@@ -552,21 +714,20 @@
                 return;
             }
 
-            if (saved.antennaType) {
-                const antennaType = document.getElementById('antennaType');
-                if (Array.from(antennaType.options).some(o => o.value === saved.antennaType)) {
-                    antennaType.value = saved.antennaType;
-                }
+            if (Array.isArray(saved.probes)) {
+                probeEntries = saved.probes
+                    .filter(p => p && p.txpr)
+                    .map(p => ({
+                        antennaType: p.antennaType || '1.8 m Dish',
+                        channelPower: p.channelPower,
+                        channelUnit: p.channelUnit || 'dBm',
+                        eirp: p.eirp,
+                        txpr: p.txpr
+                    }));
+            } else {
+                probeEntries = [];
             }
-            if (saved.probeChannelPower !== undefined) {
-                document.getElementById('probeChannelPower').value = saved.probeChannelPower;
-            }
-            if (saved.probeChannelPowerUnit) {
-                document.getElementById('probeChannelPowerUnit').value = saved.probeChannelPowerUnit;
-            }
-            if (saved.probeEirpRef !== undefined) {
-                document.getElementById('probeEirpRef').value = saved.probeEirpRef;
-            }
+            renderProbeEntries();
 
             const tbody = document.getElementById('power-log-body');
             tbody.innerHTML = '';
@@ -611,17 +772,21 @@
                 return {
                     soi: cells[0].querySelector('select') ? cells[0].querySelector('select').value : '',
                     antenna: cells[1].querySelector('select') ? cells[1].querySelector('select').value : '',
-                    attn: cells[3].querySelector('input') ? cells[3].querySelector('input').value : '',
-                    modem: cells[4].querySelector('input') ? cells[4].querySelector('input').value : '',
-                    channelPower: cells[5].querySelector('input') ? cells[5].querySelector('input').value : '',
-                    channelUnit: cells[5].querySelector('select') ? cells[5].querySelector('select').value : 'dBm',
-                    snr: cells[6].querySelector('input') ? cells[6].querySelector('input').value : '',
-                    tpo: cells[7].querySelector('input') ? cells[7].querySelector('input').value : '',
-                    tpoUnit: cells[7].querySelector('select') ? cells[7].querySelector('select').value : 'W'
+                    satellite: cells[3].querySelector('input') ? cells[3].querySelector('input').value : '',
+                    ttf: cells[4].querySelector('input') ? cells[4].querySelector('input').value : '',
+                    attn: cells[5].querySelector('input') ? cells[5].querySelector('input').value : '',
+                    modem: cells[6].querySelector('input') ? cells[6].querySelector('input').value : '',
+                    channelPower: cells[7].querySelector('input') ? cells[7].querySelector('input').value : '',
+                    channelUnit: cells[7].querySelector('select') ? cells[7].querySelector('select').value : 'dBm',
+                    snr: cells[8].querySelector('input') ? cells[8].querySelector('input').value : '',
+                    tpo: cells[9].querySelector('input') ? cells[9].querySelector('input').value : '',
+                    tpoUnit: cells[9].querySelector('select') ? cells[9].querySelector('select').value : 'W',
+                    txpr: cells[12].querySelector('input') ? cells[12].querySelector('input').value : ''
                 };
             });
 
             ewData = extractEwData();
+            populateProbeTxprOptions();
             const tbody = document.getElementById('power-log-body');
             tbody.innerHTML = '';
             if (!currentRows.length) {
@@ -629,6 +794,103 @@
             } else {
                 currentRows.forEach(r => addPowerRow(r));
             }
+            renderProbeEntries();
+            autoSavePowerLog();
+        }
+
+        function populateProbeTxprOptions(selected = '') {
+            const txprSelect = document.getElementById('probe-txpr');
+            if (!txprSelect) return;
+            const options = Array.isArray(ewData.txprs) ? ewData.txprs : [];
+            txprSelect.innerHTML = '';
+            if (!options.length) {
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = 'No TXPR found in EW events';
+                txprSelect.appendChild(option);
+                txprSelect.disabled = true;
+                return;
+            }
+            txprSelect.disabled = false;
+            options.forEach(txpr => {
+                const option = document.createElement('option');
+                option.value = txpr;
+                option.textContent = txpr;
+                txprSelect.appendChild(option);
+            });
+            txprSelect.value = options.includes(selected) ? selected : options[0];
+        }
+
+        function renderProbeEntries() {
+            const body = document.getElementById('probe-body');
+            const configBody = document.getElementById('probe-config-body');
+            if (!body || !configBody) return;
+            body.innerHTML = '';
+            configBody.innerHTML = '';
+            probeEntries.forEach((entry, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td>${entry.txpr || ''}</td><td>${entry.antennaType || ''}</td><td>${entry.channelPower || ''} ${entry.channelUnit || ''}</td><td>${entry.eirp || ''}</td>`;
+                const actionCell = document.createElement('td');
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'btn btn-danger';
+                removeBtn.textContent = 'X';
+                removeBtn.addEventListener('click', () => {
+                    probeEntries.splice(index, 1);
+                    renderProbeEntries();
+                    recalcAllRows();
+                    autoSavePowerLog();
+                });
+                actionCell.appendChild(removeBtn);
+                row.appendChild(actionCell);
+                body.appendChild(row);
+
+                const cfgRow = document.createElement('tr');
+                cfgRow.innerHTML = `<td>${entry.txpr || ''}</td><td>${entry.antennaType || ''}</td><td>${entry.channelPower || ''} ${entry.channelUnit || ''}</td><td>${entry.eirp || ''}</td>`;
+                configBody.appendChild(cfgRow);
+            });
+        }
+
+        function openProbeWindow() {
+            const modal = document.getElementById('probe-window');
+            if (!modal) return;
+            const suggested = probeEntries.length ? (probeEntries[probeEntries.length - 1].antennaType || '1.8 m Dish') : '1.8 m Dish';
+            populateProbeAntennaTypeOptions(suggested);
+            populateProbeTxprOptions();
+            renderProbeEntries();
+            modal.classList.add('open');
+        }
+
+        function closeProbeWindow() {
+            const modal = document.getElementById('probe-window');
+            if (!modal) return;
+            modal.classList.remove('open');
+        }
+
+        function handleProbeBackdropClick(event) {
+            if (event.target && event.target.id === 'probe-window') {
+                closeProbeWindow();
+            }
+        }
+
+        function addProbeEntry() {
+            const antennaType = document.getElementById('probe-antenna-type').value;
+            const channelPower = document.getElementById('probe-channel-power').value;
+            const channelUnit = document.getElementById('probe-channel-unit').value;
+            const eirp = document.getElementById('probe-eirp-ref').value;
+            const txpr = document.getElementById('probe-txpr').value;
+            if (!txpr || !Number.isFinite(parseFloat(channelPower)) || !Number.isFinite(parseFloat(eirp))) {
+                return;
+            }
+            const existing = probeEntries.findIndex(entry => entry.txpr === txpr);
+            const payload = { antennaType, channelPower, channelUnit, eirp, txpr };
+            if (existing >= 0) {
+                probeEntries[existing] = payload;
+            } else {
+                probeEntries.push(payload);
+            }
+            renderProbeEntries();
+            recalcAllRows();
             autoSavePowerLog();
         }
 
@@ -642,13 +904,8 @@
             setInterval(updateClock, 1000);
 
             ewData = extractEwData();
-            renderAntennaTypeOptions();
-
-            ['probeChannelPower', 'probeChannelPowerUnit', 'probeEirpRef'].forEach(id => {
-                const el = document.getElementById(id);
-                el.addEventListener('input', () => { recalcAllRows(); autoSavePowerLog(); });
-                el.addEventListener('change', () => { recalcAllRows(); autoSavePowerLog(); });
-            });
+            populateProbeAntennaTypeOptions();
+            populateProbeTxprOptions();
 
             loadPowerLogState();
             updateRowCount();

@@ -50,8 +50,10 @@
         }
 
         .antenna-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; grid-column: span 2; }
-        .antenna-rf-table th, .antenna-rf-table td { padding: 3px; font-size: 0.75rem; }
-        .antenna-rf-table input { font-size: 0.78rem; padding: 3px; }
+        .field-label { font-size: 0.68rem; color: var(--accent); margin: 6px 0 2px; text-transform: uppercase; }
+        .field-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+        .field-pair .field-label { margin-top: 0; }
+        .readonly-disabled { color: #6a737d; background: #0a0f14; }
         .lower-row { grid-column: span 2; display: flex; gap: 0; min-height: 260px; min-width: 0; }
         .lower-panel { min-width: 0; }
         #eng-table, #ns-table { table-layout: fixed; width: 100%; }
@@ -90,7 +92,7 @@
         .btn-danger:hover { background: var(--danger); color: white; }
     </style>
 </head>
-<body onload="loadFromStorage(); initLowerRowResize()">
+<body onload="initDashboard()">
 
     <div class="header-strip">
         <div>
@@ -111,33 +113,81 @@
         <div class="antenna-row">
             <div class="card" id="ant-1">
                 <div class="card-header">ANTENNA 01</div>
-                <input type="text" data-key="ant1-id" placeholder="ID (e.g. ALPHA)">
-                <select data-key="ant1-band"><option>C</option><option>X</option><option>Ku</option><option>Ka</option></select>
-                <table class="antenna-rf-table" style="margin-top:8px;">
-                    <thead><tr><th>Sat</th><th>Pol</th><th>XPDR</th></tr></thead>
-                    <tbody id="sat-body-ant1"></tbody>
-                </table>
-                <button class="btn" style="margin-top:5px" onclick="addRow('sat-body-ant1')">+ Asset</button>
+                <div class="field-label">Antenna</div>
+                <select data-key="ant1-id" onchange="handleAntennaSelectChange(1)"></select>
+                <input type="hidden" data-key="ant1-band" value="Ku">
+                <div class="field-pair" style="margin-top:6px;">
+                    <div>
+                        <div class="field-label">DL-LO (MHz)</div>
+                        <input type="number" data-key="ant1-dl-lo" step="0.001" readonly>
+                    </div>
+                    <div>
+                        <div class="field-label">UL-LO (MHz)</div>
+                        <input type="number" data-key="ant1-ul-lo" step="0.001" readonly>
+                    </div>
+                </div>
+                <div class="field-label">Satellite</div>
+                <select data-key="ant1-sat" onchange="handleSatelliteSelectChange(1)"></select>
+                <div class="field-pair" style="margin-top:6px;">
+                    <div>
+                        <div class="field-label">Polarization</div>
+                        <input type="text" data-key="ant1-pol" readonly>
+                    </div>
+                </div>
+                <div class="field-label">TTF (MHz)</div>
+                <input type="number" data-key="ant1-ttf" step="0.001" readonly>
             </div>
             <div class="card" id="ant-2">
                 <div class="card-header">ANTENNA 02</div>
-                <input type="text" data-key="ant2-id" placeholder="ID (e.g. BRAVO)">
-                <select data-key="ant2-band"><option>C</option><option>X</option><option>Ku</option><option>Ka</option></select>
-                <table class="antenna-rf-table" style="margin-top:8px;">
-                    <thead><tr><th>Sat</th><th>Pol</th><th>XPDR</th></tr></thead>
-                    <tbody id="sat-body-ant2"></tbody>
-                </table>
-                <button class="btn" style="margin-top:5px" onclick="addRow('sat-body-ant2')">+ Asset</button>
+                <div class="field-label">Antenna</div>
+                <select data-key="ant2-id" onchange="handleAntennaSelectChange(2)"></select>
+                <input type="hidden" data-key="ant2-band" value="Ku">
+                <div class="field-pair" style="margin-top:6px;">
+                    <div>
+                        <div class="field-label">DL-LO (MHz)</div>
+                        <input type="number" data-key="ant2-dl-lo" step="0.001" readonly>
+                    </div>
+                    <div>
+                        <div class="field-label">UL-LO (MHz)</div>
+                        <input type="number" data-key="ant2-ul-lo" step="0.001" readonly>
+                    </div>
+                </div>
+                <div class="field-label">Satellite</div>
+                <select data-key="ant2-sat" onchange="handleSatelliteSelectChange(2)"></select>
+                <div class="field-pair" style="margin-top:6px;">
+                    <div>
+                        <div class="field-label">Polarization</div>
+                        <input type="text" data-key="ant2-pol" readonly>
+                    </div>
+                </div>
+                <div class="field-label">TTF (MHz)</div>
+                <input type="number" data-key="ant2-ttf" step="0.001" readonly>
             </div>
             <div class="card" id="ant-3">
                 <div class="card-header">ANTENNA 03</div>
-                <input type="text" data-key="ant3-id" placeholder="ID (e.g. CHARLIE)">
-                <select data-key="ant3-band"><option>C</option><option>X</option><option>Ku</option><option>Ka</option></select>
-                <table class="antenna-rf-table" style="margin-top:8px;">
-                    <thead><tr><th>Sat</th><th>Pol</th><th>XPDR</th></tr></thead>
-                    <tbody id="sat-body-ant3"></tbody>
-                </table>
-                <button class="btn" style="margin-top:5px" onclick="addRow('sat-body-ant3')">+ Asset</button>
+                <div class="field-label">Antenna</div>
+                <select data-key="ant3-id" onchange="handleAntennaSelectChange(3)"></select>
+                <input type="hidden" data-key="ant3-band" value="Ku">
+                <div class="field-pair" style="margin-top:6px;">
+                    <div>
+                        <div class="field-label">DL-LO (MHz)</div>
+                        <input type="number" data-key="ant3-dl-lo" step="0.001" readonly>
+                    </div>
+                    <div>
+                        <div class="field-label">UL-LO (MHz)</div>
+                        <input type="number" data-key="ant3-ul-lo" step="0.001" readonly>
+                    </div>
+                </div>
+                <div class="field-label">Satellite</div>
+                <select data-key="ant3-sat" onchange="handleSatelliteSelectChange(3)"></select>
+                <div class="field-pair" style="margin-top:6px;">
+                    <div>
+                        <div class="field-label">Polarization</div>
+                        <input type="text" data-key="ant3-pol" readonly>
+                    </div>
+                </div>
+                <div class="field-label">TTF (MHz)</div>
+                <input type="number" data-key="ant3-ttf" step="0.001" readonly>
             </div>
         </div>
 
@@ -145,7 +195,7 @@
             <div class="card lower-panel" id="eng-panel" style="flex: 1 1 55%;">
                 <div class="card-header">ENGAGEMENTS</div>
                 <table id="eng-table">
-                    <thead><tr><th>SOI</th><th>Effect</th><th>IF-DL (MHz)</th><th>Start</th><th>Stop</th><th>Status</th></tr></thead>
+                    <thead><tr><th>SOI</th><th>Antenna</th><th>Satellite</th><th>Effect</th><th>IF-DL (MHz)</th><th>TXPDR</th><th>Modem</th><th>EIRP (dBW)</th><th>Start</th><th>Stop</th><th>Status</th></tr></thead>
                     <tbody id="eng-body"></tbody>
                 </table>
                 <button class="btn" style="margin-top:5px" onclick="addRow('eng-body')">+ Event</button>
@@ -165,26 +215,363 @@
     </div>
 
     <script>
-        // --- CORE LOGIC ---
-        function isAntennaSatTable(tableId) {
-            return tableId === 'sat-body-ant1' || tableId === 'sat-body-ant2' || tableId === 'sat-body-ant3';
+        const DEFAULT_ANTENNA_PRESETS = [
+            { label: 'Airbus Ranger C', band: 'C', downLO: 5150, upLO: 4900 },
+            { label: 'Satlite C', band: 'C', downLO: 5150, upLO: 5750 },
+            { label: 'Hawkeye C', band: 'C', downLO: 5150, upLO: 4900 },
+            { label: 'C-Band Standard', band: 'C', downLO: 5150, upLO: 4900 },
+            { label: 'C-Band Wide IF', band: 'C', downLO: 5150, upLO: 5750 },
+            { label: 'Airbus Ranger X', band: 'X', downLO: 6300, upLO: 7000 },
+            { label: 'Satlite X', band: 'X', downLO: 6300, upLO: 7000 },
+            { label: 'Hawkeye X', band: 'X', downLO: 6650, upLO: 7000 },
+            { label: 'Tampa Antennas X', band: 'X', downLO: 6300, upLO: 6950 },
+            { label: 'X-Band Standard', band: 'X', downLO: 6300, upLO: 7000 },
+            { label: 'X-Band Alt', band: 'X', downLO: 6650, upLO: 7000 },
+            { label: 'Airbus Ranger Ku Low', band: 'Ku', downLO: 10000, upLO: 13000 },
+            { label: 'Airbus Ranger Ku Mid', band: 'Ku', downLO: 10750, upLO: 13000 },
+            { label: 'Airbus Ranger Ku High', band: 'Ku', downLO: 11200, upLO: 13000 },
+            { label: 'Satlite Ku', band: 'Ku', downLO: 10600, upLO: 13000 },
+            { label: 'Hawkeye III Ku Low', band: 'Ku', downLO: 10000, upLO: 13000 },
+            { label: 'Hawkeye III Ku Mid', band: 'Ku', downLO: 10750, upLO: 13000 },
+            { label: 'Hawkeye III Ku High', band: 'Ku', downLO: 11200, upLO: 13000 },
+            { label: 'Tampa Antennas Ku Low', band: 'Ku', downLO: 10000, upLO: 12800 },
+            { label: 'Tampa Antennas Ku High', band: 'Ku', downLO: 10800, upLO: 12800 },
+            { label: 'Ku-Band Universal Low 10G', band: 'Ku', downLO: 10000, upLO: 13000 },
+            { label: 'Ku-Band Universal Low 10.75G', band: 'Ku', downLO: 10750, upLO: 13000 },
+            { label: 'Ku-Band Universal High', band: 'Ku', downLO: 11200, upLO: 13000 },
+            { label: 'Airbus Ranger Ka', band: 'Ka', downLO: 21200, upLO: 29250 },
+            { label: 'Satlite Ka', band: 'Ka', downLO: 21000, upLO: 29000 },
+            { label: 'Hawkeye Ka', band: 'Ka', downLO: 21200, upLO: 29250 },
+            { label: 'Tampa Antennas Ka', band: 'Ka', downLO: 21000, upLO: 29000 },
+            { label: 'Ka-Band Typical', band: 'Ka', downLO: 21200, upLO: 29250 },
+            { label: 'Ka-Band Alt', band: 'Ka', downLO: 21000, upLO: 29000 }
+        ];
+        const DEFAULT_SATELLITES = [
+            { name: 'Satellite-A', ttf: 2225, pol: 'H' },
+            { name: 'Satellite-B', ttf: 1300, pol: 'V' },
+            { name: 'Satellite-C', ttf: 1000, pol: 'RHCP' }
+        ];
+        const ADD_NEW_VALUE = '__add_new__';
+        const ANTENNA_GAIN_TABLE = {
+            '0.45 m Dish': { C: 0, X: 30.5, Ku: 35.0, Ka: 41.5 },
+            '0.65 m Dish': { C: 0, X: 33.5, Ku: 38.0, Ka: 44.5 },
+            '0.95 m Dish': { C: 0, X: 36.5, Ku: 41.5, Ka: 48.0 },
+            '1.2 m Dish': { C: 0, X: 38.5, Ku: 43.5, Ka: 49.5 },
+            '1.8 m Dish': { C: 39.7, X: 41.9, Ku: 47.1, Ka: 52.7 },
+            '2.0 m Dish': { C: 40.5, X: 42.6, Ku: 47.8, Ka: 53.7 },
+            '2.4 m Dish': { C: 43.5, X: 47.0, Ku: 50.5, Ka: 54.0 },
+            '5.0 m Dish': { C: 50.0, X: 53.5, Ku: 57.0, Ka: 60.5 }
+        };
+        let customAntennaPresets = [];
+        let customSatellites = [];
+
+        function getAntennaCatalog() {
+            return DEFAULT_ANTENNA_PRESETS.concat(customAntennaPresets || []);
         }
 
+        function getSatelliteCatalog() {
+            return DEFAULT_SATELLITES.concat(customSatellites || []);
+        }
+
+        function promptForCustomAntenna() {
+            const label = (prompt('New antenna name (matches RF Calc style):', '') || '').trim();
+            if (!label) return null;
+            const bandRaw = (prompt('Band (C, X, Ku, Ka):', 'Ku') || '').trim();
+            const band = ['C', 'X', 'Ku', 'Ka'].includes(bandRaw) ? bandRaw : 'Ku';
+            const dlLO = parseFloat(prompt('DL-LO MHz:', '10000'));
+            const ulLO = parseFloat(prompt('UL-LO MHz:', '13000'));
+            if (!Number.isFinite(dlLO) || !Number.isFinite(ulLO)) {
+                return null;
+            }
+            return { label, band, downLO: dlLO, upLO: ulLO };
+        }
+
+        function promptForCustomSatellite() {
+            const name = (prompt('New satellite name:', '') || '').trim();
+            if (!name) return null;
+            const ttf = parseFloat(prompt('TTF MHz:', '2225'));
+            if (!Number.isFinite(ttf)) return null;
+            const pol = (prompt('Polarization (e.g. H, V, RHCP):', 'H') || '').trim();
+            return { name, ttf, pol };
+        }
+
+        function populateCardSelect(idx, type, selected) {
+            const dataKey = `ant${idx}-${type}`;
+            const select = document.querySelector(`[data-key="${dataKey}"]`);
+            if (!select) return;
+            const catalog = type === 'id' ? getAntennaCatalog() : getSatelliteCatalog();
+            const keyName = type === 'id' ? 'label' : 'name';
+            const previous = selected || select.value;
+            select.innerHTML = '';
+            catalog.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item[keyName];
+                option.textContent = item[keyName];
+                select.appendChild(option);
+            });
+            const addOption = document.createElement('option');
+            addOption.value = ADD_NEW_VALUE;
+            addOption.textContent = '+ Add New...';
+            select.appendChild(addOption);
+            const hasPrevious = catalog.some(item => item[keyName] === previous);
+            if (hasPrevious) {
+                select.value = previous;
+            } else if (catalog.length) {
+                select.value = catalog[0][keyName];
+            }
+        }
+
+        function getCardValues(idx) {
+            const read = (key) => {
+                const el = document.querySelector(`[data-key="ant${idx}-${key}"]`);
+                return el ? el.value : '';
+            };
+            return {
+                id: read('id'),
+                band: read('band'),
+                dlLO: read('dl-lo'),
+                ulLO: read('ul-lo'),
+                satellite: read('sat'),
+                pol: read('pol'),
+                ttf: read('ttf')
+            };
+        }
+
+        function applyAntennaToCard(idx) {
+            const antName = (document.querySelector(`[data-key="ant${idx}-id"]`) || {}).value || '';
+            const preset = getAntennaCatalog().find(item => item.label === antName);
+            if (!preset) return;
+            const bandEl = document.querySelector(`[data-key="ant${idx}-band"]`);
+            const dlEl = document.querySelector(`[data-key="ant${idx}-dl-lo"]`);
+            const ulEl = document.querySelector(`[data-key="ant${idx}-ul-lo"]`);
+            if (bandEl) bandEl.value = preset.band;
+            if (dlEl) dlEl.value = String(preset.downLO);
+            if (ulEl) ulEl.value = String(preset.upLO);
+        }
+
+        function applySatelliteToCard(idx) {
+            const satName = (document.querySelector(`[data-key="ant${idx}-sat"]`) || {}).value || '';
+            const sat = getSatelliteCatalog().find(item => item.name === satName);
+            const ttfEl = document.querySelector(`[data-key="ant${idx}-ttf"]`);
+            const polEl = document.querySelector(`[data-key="ant${idx}-pol"]`);
+            if (ttfEl) ttfEl.value = sat ? String(sat.ttf) : '';
+            if (polEl) polEl.value = sat ? (sat.pol || '') : '';
+        }
+
+        function wattsToDbw(watts) {
+            return 10 * Math.log10(watts);
+        }
+
+        function dbmToDbw(dbm) {
+            return dbm - 30;
+        }
+
+        function convertTpoToDbw(value, unit) {
+            const v = parseFloat(value);
+            if (!Number.isFinite(v)) return null;
+            if (unit === 'dBW') return v;
+            if (unit === 'dBm') return dbmToDbw(v);
+            if (v <= 0) return null;
+            return wattsToDbw(v);
+        }
+
+        function computeEirpFromPowerRow(powerRow, antennaBand, antennaType) {
+            const gainByBand = ANTENNA_GAIN_TABLE[antennaType] || {};
+            const passiveGain = Number.isFinite(gainByBand[antennaBand]) ? gainByBand[antennaBand] : 0;
+            const tpoDbw = convertTpoToDbw(powerRow.tpo, powerRow.tpoUnit || 'W');
+            if (!Number.isFinite(tpoDbw)) return null;
+            return tpoDbw + passiveGain;
+        }
+
+        function buildPowerLogLookup() {
+            const saved = JSON.parse(localStorage.getItem('ewPowerLogState') || 'null');
+            if (!saved || !Array.isArray(saved.rows)) return {};
+            const antennaType = (saved.antennaType || '1.8 m Dish').toString();
+            const cardIndexByAntennaLabel = {};
+            [1, 2, 3].forEach(i => {
+                const card = getCardValues(i);
+                cardIndexByAntennaLabel[card.id] = i;
+            });
+            const bySoi = {};
+            saved.rows.forEach(row => {
+                const soi = (row.soi || '').toString().trim();
+                if (!soi) return;
+                const idx = cardIndexByAntennaLabel[(row.antenna || '').toString().trim()];
+                const band = idx ? getCardValues(idx).band : 'Ku';
+                const eirp = computeEirpFromPowerRow(row, band, antennaType);
+                bySoi[soi] = {
+                    modem: row.modem !== undefined ? String(row.modem) : '',
+                    eirp: Number.isFinite(eirp) ? eirp.toFixed(2) : ''
+                };
+            });
+            return bySoi;
+        }
+
+        function applyPowerDataToEngagementRow(row) {
+            if (!row) return;
+            const soiInput = row.cells[0] ? row.cells[0].querySelector('input') : null;
+            const modemInput = row.querySelector('.eng-modem');
+            const eirpInput = row.querySelector('.eng-eirp');
+            if (!soiInput || !modemInput || !eirpInput) return;
+            const lookup = buildPowerLogLookup();
+            const soi = (soiInput.value || '').trim();
+            const hit = lookup[soi];
+            if (hit && (hit.modem || '').trim() !== '' && (hit.eirp || '').trim() !== '') {
+                modemInput.value = hit.modem;
+                eirpInput.value = hit.eirp;
+                modemInput.disabled = false;
+                eirpInput.disabled = false;
+                modemInput.classList.remove('readonly-disabled');
+                eirpInput.classList.remove('readonly-disabled');
+            } else {
+                modemInput.value = '';
+                eirpInput.value = '';
+                modemInput.disabled = true;
+                eirpInput.disabled = true;
+                modemInput.classList.add('readonly-disabled');
+                eirpInput.classList.add('readonly-disabled');
+            }
+        }
+
+        function refreshEngagementPowerData() {
+            Array.from(document.querySelectorAll('#eng-body tr')).forEach(row => applyPowerDataToEngagementRow(row));
+        }
+
+        function getEngagementAntennaOptions() {
+            return [1, 2, 3].map(i => {
+                const card = getCardValues(i);
+                return {
+                    key: `ant${i}`,
+                    label: card.id || `ANT-${i}`
+                };
+            });
+        }
+
+        function refreshEngagementAntennaOptions() {
+            Array.from(document.querySelectorAll('.eng-antenna-select')).forEach(select => {
+                const previous = select.value;
+                select.innerHTML = '';
+                getEngagementAntennaOptions().forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.key;
+                    option.textContent = item.label;
+                    select.appendChild(option);
+                });
+                select.value = getEngagementAntennaOptions().some(item => item.key === previous)
+                    ? previous
+                    : 'ant1';
+                applyEngagementAntennaDetails(select.closest('tr'));
+                applyPowerDataToEngagementRow(select.closest('tr'));
+            });
+        }
+
+        function handleAntennaSelectChange(idx) {
+            const select = document.querySelector(`[data-key="ant${idx}-id"]`);
+            if (!select) return;
+            if (select.value === ADD_NEW_VALUE) {
+                const created = promptForCustomAntenna();
+                if (created) {
+                    customAntennaPresets.push(created);
+                    populateCardSelect(idx, 'id', created.label);
+                } else {
+                    populateCardSelect(idx, 'id');
+                }
+            }
+            applyAntennaToCard(idx);
+            refreshEngagementAntennaOptions();
+            refreshEngagementPowerData();
+            autoSave();
+        }
+
+        function handleSatelliteSelectChange(idx) {
+            const select = document.querySelector(`[data-key="ant${idx}-sat"]`);
+            if (!select) return;
+            if (select.value === ADD_NEW_VALUE) {
+                const created = promptForCustomSatellite();
+                if (created) {
+                    customSatellites.push(created);
+                    populateCardSelect(idx, 'sat', created.name);
+                } else {
+                    populateCardSelect(idx, 'sat');
+                }
+            }
+            applySatelliteToCard(idx);
+            Array.from(document.querySelectorAll('#eng-body tr')).forEach(row => applyEngagementAntennaDetails(row));
+            autoSave();
+        }
+
+        function applyEngagementAntennaDetails(row) {
+            if (!row) return;
+            const antSelect = row.querySelector('.eng-antenna-select');
+            if (!antSelect) return;
+            const match = (antSelect.value || '').match(/^ant(\d)$/);
+            const idx = match ? parseInt(match[1], 10) : 1;
+            const card = getCardValues(idx);
+            const satInput = row.querySelector('.eng-sat');
+            if (satInput) satInput.value = card.satellite || '';
+        }
+
+        function initAntennaAndSatelliteControls() {
+            [1, 2, 3].forEach(idx => {
+                populateCardSelect(idx, 'id');
+                populateCardSelect(idx, 'sat');
+                applyAntennaToCard(idx);
+                applySatelliteToCard(idx);
+            });
+        }
+
+        // --- CORE LOGIC ---
         function addRow(tableId, data = ['', '', '', '']) {
             const table = document.getElementById(tableId);
             const row = table.insertRow();
-            if (isAntennaSatTable(tableId)) {
-                row.innerHTML = `<td><input type="text" value="${data[0] || ''}"></td><td><input type="text" value="${data[1] || ''}"></td><td><input type="text" value="${data[2] || ''}"></td>`;
-            } else if (tableId === 'eng-body') {
+            if (tableId === 'eng-body') {
                 const normalizeEngData = (raw) => {
                     if (!Array.isArray(raw)) {
-                        return { soi: '', effect: '', ifdl: '', start: '', stop: '', status: 'tasked' };
+                        return { soi: '', antenna: 'ant1', satellite: '', effect: '', ifdl: '', txpdr: '', modem: '', eirp: '', start: '', stop: '', status: 'tasked' };
+                    }
+                    if (raw.length >= 11) {
+                        const looksLegacyWithLoColumns = Number.isFinite(parseFloat(raw[5]))
+                            && Number.isFinite(parseFloat(raw[6]))
+                            && Number.isFinite(parseFloat(raw[7]));
+                        return {
+                            soi: raw[0] || '',
+                            antenna: raw[1] || 'ant1',
+                            satellite: raw[2] || '',
+                            effect: raw[3] || '',
+                            ifdl: raw[4] || '',
+                            txpdr: looksLegacyWithLoColumns ? '' : (raw[5] || ''),
+                            modem: looksLegacyWithLoColumns ? '' : (raw[6] || ''),
+                            eirp: looksLegacyWithLoColumns ? '' : (raw[7] || ''),
+                            start: extractTimeString(raw[8]),
+                            stop: extractTimeString(raw[9]),
+                            status: raw[10] || 'tasked'
+                        };
+                    }
+                    if (raw.length >= 10) {
+                        return {
+                            soi: raw[0] || '',
+                            antenna: raw[1] || 'ant1',
+                            satellite: raw[2] || '',
+                            effect: raw[3] || '',
+                            ifdl: raw[4] || '',
+                            txpdr: '',
+                            modem: raw[5] || '',
+                            eirp: raw[6] || '',
+                            start: extractTimeString(raw[7]),
+                            stop: extractTimeString(raw[8]),
+                            status: raw[9] || 'tasked'
+                        };
                     }
                     if (raw.length >= 6) {
                         return {
                             soi: raw[0] || '',
+                            antenna: 'ant1',
+                            satellite: '',
                             effect: raw[1] || '',
                             ifdl: raw[2] || '',
+                            txpdr: '',
+                            modem: '',
+                            eirp: '',
                             start: extractTimeString(raw[3]),
                             stop: extractTimeString(raw[4]),
                             status: raw[5] || 'tasked'
@@ -193,8 +580,13 @@
                     if (raw.length >= 4) {
                         return {
                             soi: raw[0] || '',
+                            antenna: 'ant1',
+                            satellite: '',
                             effect: raw[1] || '',
                             ifdl: raw[2] || '',
+                            txpdr: '',
+                            modem: '',
+                            eirp: '',
                             start: extractTimeString(raw[3]),
                             stop: '',
                             status: 'tasked'
@@ -202,8 +594,13 @@
                     }
                     return {
                         soi: raw[0] || '',
+                        antenna: 'ant1',
+                        satellite: '',
                         effect: '',
                         ifdl: '',
+                        txpdr: '',
+                        modem: '',
+                        eirp: '',
                         start: extractTimeString(raw[1]),
                         stop: '',
                         status: 'tasked'
@@ -213,11 +610,33 @@
                 const normalizedStatus = ['tasked', 'ready', 'active', 'inactive'].includes((eng.status || '').toLowerCase())
                     ? eng.status.toLowerCase()
                     : 'tasked';
-                row.innerHTML = `<td><input type="text" value="${eng.soi}"></td><td><input type="text" value="${eng.effect}"></td><td><input type="number" step="0.001" value="${eng.ifdl}"></td><td><input type="text" class="eng-time" inputmode="numeric" placeholder="HH:MM" title="Zulu time HH:MM (24h)" value="${eng.start}"></td><td><input type="text" inputmode="numeric" placeholder="HH:MM" title="Zulu time HH:MM (24h)" value="${eng.stop}"></td><td><select><option value="tasked">TASKED</option><option value="ready">READY</option><option value="active">ACTIVE</option><option value="inactive">INACTIVE</option></select></td>`;
-                const statusSelect = row.querySelector('select');
+                row.innerHTML = `<td><input type="text" value="${eng.soi}"></td><td class="eng-antenna-cell"></td><td><input type="text" class="eng-sat" value="${eng.satellite}" readonly></td><td><input type="text" value="${eng.effect}"></td><td><input type="number" step="0.001" value="${eng.ifdl}"></td><td><input type="text" class="eng-txpdr" value="${eng.txpdr || ''}"></td><td><input type="text" class="eng-modem readonly-disabled" value="${eng.modem}" readonly disabled></td><td><input type="text" class="eng-eirp readonly-disabled" value="${eng.eirp}" readonly disabled></td><td><input type="text" class="eng-time" inputmode="numeric" placeholder="HH:MM" title="Zulu time HH:MM (24h)" value="${eng.start}"></td><td><input type="text" inputmode="numeric" placeholder="HH:MM" title="Zulu time HH:MM (24h)" value="${eng.stop}"></td><td><select><option value="tasked">TASKED</option><option value="ready">READY</option><option value="active">ACTIVE</option><option value="inactive">INACTIVE</option></select></td>`;
+                const antCell = row.querySelector('.eng-antenna-cell');
+                const antSelect = document.createElement('select');
+                antSelect.className = 'eng-antenna-select';
+                getEngagementAntennaOptions().forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.key;
+                    option.textContent = item.label;
+                    antSelect.appendChild(option);
+                });
+                antSelect.value = getEngagementAntennaOptions().some(item => item.key === eng.antenna) ? eng.antenna : 'ant1';
+                antCell.appendChild(antSelect);
+                const statusSelect = row.querySelectorAll('select')[1];
                 if (statusSelect) {
                     statusSelect.value = normalizedStatus;
                 }
+                antSelect.addEventListener('change', () => {
+                    applyEngagementAntennaDetails(row);
+                    applyPowerDataToEngagementRow(row);
+                    autoSave();
+                });
+                const soiInput = row.cells[0].querySelector('input');
+                if (soiInput) {
+                    soiInput.addEventListener('input', () => applyPowerDataToEngagementRow(row));
+                }
+                applyEngagementAntennaDetails(row);
+                applyPowerDataToEngagementRow(row);
             } else if (tableId === 'ns-body') {
                 row.innerHTML = `<td><input type="text" value="${data[0] || ''}"></td><td><input type="text" class="ns-time" inputmode="numeric" placeholder="HH:MM" title="Zulu time HH:MM (24h)" value="${data[1] || ''}"></td><td><input type="text" inputmode="numeric" placeholder="HH:MM" title="Zulu time HH:MM (24h)" value="${data[2] || ''}"></td><td><input type="number" step="0.1" value="${data[3] || ''}"></td>`;
             }
@@ -270,14 +689,10 @@
 
         // --- PERSISTENCE ---
         function autoSave() {
-            const satByAntenna = {
-                ant1: Array.from(document.getElementById('sat-body-ant1').rows).map(r => Array.from(r.querySelectorAll('input')).map(i => i.value)),
-                ant2: Array.from(document.getElementById('sat-body-ant2').rows).map(r => Array.from(r.querySelectorAll('input')).map(i => i.value)),
-                ant3: Array.from(document.getElementById('sat-body-ant3').rows).map(r => Array.from(r.querySelectorAll('input')).map(i => i.value))
-            };
             const state = {
                 antennas: Array.from(document.querySelectorAll('[data-key]')).map(el => ({key: el.getAttribute('data-key'), val: el.value})),
-                satsByAntenna: satByAntenna,
+                customAntennaPresets,
+                customSatellites,
                 engs: Array.from(document.getElementById('eng-body').rows).map(r => Array.from(r.querySelectorAll('input, select')).map(i => i.value)),
                 noShoots: Array.from(document.getElementById('ns-body').rows).map(r => Array.from(r.querySelectorAll('input')).map(i => i.value))
             };
@@ -287,30 +702,37 @@
         function loadFromStorage(externalData = null) {
             const saved = externalData || JSON.parse(localStorage.getItem('satOpsState'));
             if (!saved) return;
+
+            customAntennaPresets = Array.isArray(saved.customAntennaPresets) ? saved.customAntennaPresets : [];
+            customSatellites = Array.isArray(saved.customSatellites) ? saved.customSatellites : [];
+            initAntennaAndSatelliteControls();
             
             // Clear existing
-            document.getElementById('sat-body-ant1').innerHTML = '';
-            document.getElementById('sat-body-ant2').innerHTML = '';
-            document.getElementById('sat-body-ant3').innerHTML = '';
             document.getElementById('eng-body').innerHTML = '';
             document.getElementById('ns-body').innerHTML = '';
 
             (saved.antennas || []).forEach(a => { const el = document.querySelector(`[data-key="${a.key}"]`); if(el) el.value = a.val; });
-
-            if (saved.satsByAntenna && typeof saved.satsByAntenna === 'object') {
-                (saved.satsByAntenna.ant1 || []).forEach(d => addRow('sat-body-ant1', d));
-                (saved.satsByAntenna.ant2 || []).forEach(d => addRow('sat-body-ant2', d));
-                (saved.satsByAntenna.ant3 || []).forEach(d => addRow('sat-body-ant3', d));
-            } else if (Array.isArray(saved.sats)) {
-                // Backward compatibility for older sessions with a single RF table.
-                saved.sats.forEach(d => {
-                    const normalized = [d[0] || '', d[2] || d[1] || '', d[3] || d[2] || ''];
-                    addRow('sat-body-ant1', normalized);
-                });
-            }
+            [1, 2, 3].forEach(idx => {
+                populateCardSelect(idx, 'id', (document.querySelector(`[data-key="ant${idx}-id"]`) || {}).value || '');
+                populateCardSelect(idx, 'sat', (document.querySelector(`[data-key="ant${idx}-sat"]`) || {}).value || '');
+                applyAntennaToCard(idx);
+                applySatelliteToCard(idx);
+            });
 
             (saved.engs || []).forEach(d => addRow('eng-body', d));
             (saved.noShoots || []).forEach(d => addRow('ns-body', normalizeNoShootRow(d)));
+            refreshEngagementAntennaOptions();
+            refreshEngagementPowerData();
+        }
+
+        function initDashboard() {
+            initAntennaAndSatelliteControls();
+            loadFromStorage();
+            initLowerRowResize();
+            updateUI();
+            setInterval(updateUI, 1000);
+            window.addEventListener('focus', refreshEngagementPowerData);
+            document.querySelectorAll('input, select').forEach(el => el.addEventListener('input', autoSave));
         }
 
         // --- FILE OPS ---
@@ -425,8 +847,6 @@
             });
         }
 
-        setInterval(updateUI, 1000);
-        document.querySelectorAll('input, select').forEach(el => el.addEventListener('input', autoSave));
     </script>
 </body>
 </html>
