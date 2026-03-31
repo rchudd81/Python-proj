@@ -115,9 +115,6 @@
             width: 94px;
         }
         #power-log-table th:nth-child(13), #power-log-table td:nth-child(13) {
-            width: 70px;
-        }
-        #power-log-table th:nth-child(14), #power-log-table td:nth-child(14) {
             width: 100px;
         }
 
@@ -247,7 +244,7 @@
                         <th>Antenna</th>
                         <th>Band</th>
                         <th>Satellite</th>
-                        <th>TTF (MHz)</th>
+                        <th>TXPDR</th>
                         <th>Attn (dB)</th>
                         <th>Modem (dB)</th>
                         <th>Channel Pwr</th>
@@ -255,7 +252,6 @@
                         <th>TPO</th>
                         <th>Passive Gain (dB)</th>
                         <th>EIRP (dBW)</th>
-                        <th>TXPR</th>
                         <th>EEEIRP (dBW)</th>
                         <th></th>
                     </tr>
@@ -510,10 +506,10 @@
             satInput.readOnly = true;
             satInput.value = getSatelliteByAntennaId(antSel.value);
 
-            const ttfInput = document.createElement('input');
-            ttfInput.type = 'text';
-            ttfInput.readOnly = true;
-            ttfInput.value = getTtfByAntennaId(antSel.value);
+            const txprInput = document.createElement('input');
+            txprInput.type = 'text';
+            txprInput.readOnly = true;
+            txprInput.value = seed && seed.txpr !== undefined ? seed.txpr : getTxprBySoi(soiSel.value);
 
             const attnInput = document.createElement('input');
             attnInput.type = 'number';
@@ -562,11 +558,6 @@
             eirpOut.className = 'mono value-ok';
             eirpOut.textContent = '--';
 
-            const txprInput = document.createElement('input');
-            txprInput.type = 'text';
-            txprInput.readOnly = true;
-            txprInput.value = seed && seed.txpr !== undefined ? seed.txpr : getTxprBySoi(soiSel.value);
-
             const eeeirpOut = document.createElement('div');
             eeeirpOut.className = 'mono value-muted';
             eeeirpOut.textContent = '--';
@@ -586,7 +577,7 @@
             row.appendChild(td(antSel));
             row.appendChild(td(bandInput));
             row.appendChild(td(satInput));
-            row.appendChild(td(ttfInput));
+            row.appendChild(td(txprInput));
             row.appendChild(td(attnInput));
             row.appendChild(td(modemInput));
             row.appendChild(td(chWrap));
@@ -594,7 +585,6 @@
             row.appendChild(td(tpoWrap));
             row.appendChild(td(passiveGainOut));
             row.appendChild(td(eirpOut));
-            row.appendChild(td(txprInput));
             row.appendChild(td(eeeirpOut));
             row.appendChild(td(removeBtn));
 
@@ -603,7 +593,6 @@
             const recalcRow = () => {
                 bandInput.value = getBandByAntennaId(antSel.value);
                 satInput.value = getSatelliteByAntennaId(antSel.value);
-                ttfInput.value = getTtfByAntennaId(antSel.value);
                 txprInput.value = getTxprBySoi(soiSel.value);
                 const matchingProbe = findProbeByTxpr(txprInput.value);
                 const antennaType = matchingProbe && matchingProbe.antennaType
@@ -688,7 +677,6 @@
                 const soi = cells[0].querySelector('select') ? cells[0].querySelector('select').value : '';
                 const antenna = cells[1].querySelector('select') ? cells[1].querySelector('select').value : '';
                 const satellite = cells[3].querySelector('input') ? cells[3].querySelector('input').value : '';
-                const ttf = cells[4].querySelector('input') ? cells[4].querySelector('input').value : '';
                 const attn = cells[5].querySelector('input') ? cells[5].querySelector('input').value : '';
                 const modem = cells[6].querySelector('input') ? cells[6].querySelector('input').value : '';
                 const channelPower = cells[7].querySelector('input') ? cells[7].querySelector('input').value : '';
@@ -696,8 +684,8 @@
                 const snr = cells[8].querySelector('input') ? cells[8].querySelector('input').value : '';
                 const tpo = cells[9].querySelector('input') ? cells[9].querySelector('input').value : '';
                 const tpoUnit = cells[9].querySelector('select') ? cells[9].querySelector('select').value : 'W';
-                const txpr = cells[12].querySelector('input') ? cells[12].querySelector('input').value : '';
-                return { soi, antenna, satellite, ttf, attn, modem, channelPower, channelUnit, snr, tpo, tpoUnit, txpr };
+                const txpr = cells[4].querySelector('input') ? cells[4].querySelector('input').value : '';
+                return { soi, antenna, satellite, attn, modem, channelPower, channelUnit, snr, tpo, tpoUnit, txpr };
             });
 
             const payload = {
@@ -773,7 +761,6 @@
                     soi: cells[0].querySelector('select') ? cells[0].querySelector('select').value : '',
                     antenna: cells[1].querySelector('select') ? cells[1].querySelector('select').value : '',
                     satellite: cells[3].querySelector('input') ? cells[3].querySelector('input').value : '',
-                    ttf: cells[4].querySelector('input') ? cells[4].querySelector('input').value : '',
                     attn: cells[5].querySelector('input') ? cells[5].querySelector('input').value : '',
                     modem: cells[6].querySelector('input') ? cells[6].querySelector('input').value : '',
                     channelPower: cells[7].querySelector('input') ? cells[7].querySelector('input').value : '',
@@ -781,7 +768,7 @@
                     snr: cells[8].querySelector('input') ? cells[8].querySelector('input').value : '',
                     tpo: cells[9].querySelector('input') ? cells[9].querySelector('input').value : '',
                     tpoUnit: cells[9].querySelector('select') ? cells[9].querySelector('select').value : 'W',
-                    txpr: cells[12].querySelector('input') ? cells[12].querySelector('input').value : ''
+                    txpr: cells[4].querySelector('input') ? cells[4].querySelector('input').value : ''
                 };
             });
 

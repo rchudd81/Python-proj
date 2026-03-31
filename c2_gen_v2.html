@@ -77,6 +77,16 @@
         .main-tab-btn.active { background: var(--accent); }
         .main-tab-view { display: none; }
         .main-tab-view.active { display: block; }
+        .reference-main { border: 1px solid #444; border-radius: 6px; padding: 15px; background: #1d1d1d; }
+        .reference-main h4 { margin: 0 0 8px 0; font-size: 1em; }
+        .reference-main .hint { margin-bottom: 14px; }
+        .reference-section { border: 1px solid #3f3f3f; border-radius: 6px; padding: 12px; background: #171717; margin-bottom: 12px; }
+        .reference-table-wrap { overflow-x: auto; }
+        .reference-table { width: 100%; border-collapse: collapse; font-size: 0.86em; }
+        .reference-table th, .reference-table td { border: 1px solid #3d3d3d; padding: 7px 8px; text-align: left; vertical-align: top; }
+        .reference-table th { background: #252525; color: #d7d7d7; }
+        .reference-placeholder { font-family: Consolas, 'Courier New', monospace; color: #a7e6ff; white-space: nowrap; }
+        .reference-empty { color: #aaa; font-style: italic; }
         .signal-library-main { border: 1px solid #444; border-radius: 6px; padding: 15px; background: #1d1d1d; }
         .engagement-library-main { border: 1px solid #444; border-radius: 6px; padding: 15px; background: #1d1d1d; }
         .status-dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
@@ -444,6 +454,7 @@ STOP|Stop Time|text|1230Z</textarea>
                     <button class="main-tab-btn" data-main-tab="signals" onclick="showMainTab('signals', this)">Signal Library</button>
                     <button class="main-tab-btn" data-main-tab="engagements" onclick="showMainTab('engagements', this)">Engagement Planner</button>
                     <button class="main-tab-btn" data-main-tab="status" onclick="showMainTab('status', this)">Status</button>
+                    <button class="main-tab-btn" data-main-tab="reference" onclick="showMainTab('reference', this)">Reference</button>
                 </div>
 
                 <div id="main-tab-template" class="main-tab-view active">
@@ -591,6 +602,22 @@ STOP|Stop Time|text|1230Z</textarea>
                         </div>
                     </div>
                 </div>
+
+                <div id="main-tab-reference" class="main-tab-view">
+                    <div class="reference-main">
+                        <p class="hint">This tab lists placeholders that are hardcoded for Signal Library and Engagement Planner template resolution.</p>
+
+                        <div class="reference-section">
+                            <h4>Signal Library Hardcoded Placeholders</h4>
+                            <div id="reference-signal-list" class="reference-table-wrap"></div>
+                        </div>
+
+                        <div class="reference-section">
+                            <h4>Engagement Planner Hardcoded Placeholders</h4>
+                            <div id="reference-engagement-list" class="reference-table-wrap"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -655,6 +682,38 @@ STOP|Stop Time|text|1230Z</textarea>
     const SIGNAL_ATTRIBUTE_PLACEHOLDERS = {
         'SIGNAL-BW': 'bandwidth'
     };
+    const SIGNAL_REFERENCE_DESCRIPTIONS = {
+        'SIGNAL': 'Selected signal name from Signal Library.',
+        'SIGNAL-IF-DL': 'Selected signal IF-DL frequency (MHz).',
+        'SIGNAL-RF-DL': 'Selected signal RF-DL frequency (MHz).',
+        'SIGNAL-RF-UL': 'Selected signal RF-UL frequency (MHz).',
+        'SIGNAL-IF-UL': 'Selected signal IF-UL frequency (MHz).',
+        'SIGNAL-BW': 'Selected signal bandwidth (MHz) when set.'
+    };
+    const ENGAGEMENT_REFERENCE_ROWS = [
+        { key: 'SIGNAL', source: 'Engagement entry / linked signal', meaning: 'Signal name linked to the engagement.' },
+        { key: 'START', source: 'Engagement entry', meaning: 'Engagement start time.' },
+        { key: 'STOP', source: 'Engagement entry', meaning: 'Engagement stop time.' },
+        { key: 'EFFECT', source: 'Engagement entry', meaning: 'Effect text such as JAM, MONITOR, TRACK.' },
+        { key: 'STATUS', source: 'Engagement entry', meaning: 'Engagement status in uppercase.' },
+        { key: 'PROBE', source: 'Engagement entry', meaning: 'YES when probe is enabled, otherwise NO.' },
+        { key: 'PROBE-TYPE', source: 'Engagement entry', meaning: 'Probe type CW or MOD.' },
+        { key: 'PWR', source: 'Engagement entry', meaning: 'Probe power value.' },
+        { key: 'OFFSET', source: 'Engagement entry', meaning: 'Probe offset value.' },
+        { key: 'IF-DL', source: 'Linked signal frequencies', meaning: 'IF-DL frequency (MHz) for the linked signal.' },
+        { key: 'RF-DL', source: 'Linked signal frequencies', meaning: 'RF-DL frequency (MHz) for the linked signal.' },
+        { key: 'RF-UL', source: 'Linked signal frequencies', meaning: 'RF-UL frequency (MHz) for the linked signal.' },
+        { key: 'IF-UL', source: 'Linked signal frequencies', meaning: 'IF-UL frequency (MHz) for the linked signal.' },
+        { key: 'SIGNAL-IF-DL', source: 'Linked signal frequencies', meaning: 'IF-DL frequency (MHz) for the linked signal.' },
+        { key: 'SIGNAL-RF-DL', source: 'Linked signal frequencies', meaning: 'RF-DL frequency (MHz) for the linked signal.' },
+        { key: 'SIGNAL-RF-UL', source: 'Linked signal frequencies', meaning: 'RF-UL frequency (MHz) for the linked signal.' },
+        { key: 'SIGNAL-IF-UL', source: 'Linked signal frequencies', meaning: 'IF-UL frequency (MHz) for the linked signal.' },
+        { key: 'SIGNAL-BW', source: 'Linked signal attributes', meaning: 'Signal bandwidth (MHz).' },
+        { key: 'BW', source: 'Linked signal attributes', meaning: 'Alias for signal bandwidth (MHz).' },
+        { key: 'TTF', source: 'Computed from linked signal', meaning: 'RF-UL minus RF-DL.' },
+        { key: 'DL-LO', source: 'Linked signal metadata', meaning: 'Downlink LO (MHz) captured when signal was added.' },
+        { key: 'UL-LO', source: 'Linked signal metadata', meaning: 'Uplink LO (MHz) captured when signal was added.' }
+    ];
     const ENGAGEMENT_STATUS_OPTIONS = {
         normal: ['tasked', 'ready', 'active', 'inactive'],
         probe: ['requested', 'approved', 'active', 'inactive']
@@ -1726,6 +1785,84 @@ STOP|Stop Time|text|1230Z</textarea>
         if (tabBtn) {
             tabBtn.classList.add('active');
         }
+    }
+
+    function renderReferenceRows(containerId, rows) {
+        const container = document.getElementById(containerId);
+        if (!container) {
+            return;
+        }
+        if (!Array.isArray(rows) || !rows.length) {
+            container.innerHTML = '<p class="reference-empty">No hardcoded placeholders found.</p>';
+            return;
+        }
+        const table = document.createElement('table');
+        table.className = 'reference-table';
+
+        const thead = document.createElement('thead');
+        const headRow = document.createElement('tr');
+        ['Placeholder', 'Source', 'Meaning'].forEach(title => {
+            const th = document.createElement('th');
+            th.textContent = title;
+            headRow.appendChild(th);
+        });
+        thead.appendChild(headRow);
+        table.appendChild(thead);
+
+        const tbody = document.createElement('tbody');
+        rows.forEach(row => {
+            const tr = document.createElement('tr');
+
+            const placeholderTd = document.createElement('td');
+            const placeholderSpan = document.createElement('span');
+            placeholderSpan.className = 'reference-placeholder';
+            placeholderSpan.textContent = `[${row.key}]`;
+            placeholderTd.appendChild(placeholderSpan);
+
+            const sourceTd = document.createElement('td');
+            sourceTd.textContent = row.source;
+
+            const meaningTd = document.createElement('td');
+            meaningTd.textContent = row.meaning;
+
+            tr.appendChild(placeholderTd);
+            tr.appendChild(sourceTd);
+            tr.appendChild(meaningTd);
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+
+        container.innerHTML = '';
+        container.appendChild(table);
+    }
+
+    function buildSignalReferenceRows() {
+        const rows = [];
+        rows.push({
+            key: SIGNAL_PLACEHOLDER,
+            source: 'Signal Library selection',
+            meaning: SIGNAL_REFERENCE_DESCRIPTIONS[SIGNAL_PLACEHOLDER]
+        });
+        Object.keys(SIGNAL_FREQUENCY_PLACEHOLDER_MAP).forEach(key => {
+            rows.push({
+                key,
+                source: 'Selected signal frequencies',
+                meaning: SIGNAL_REFERENCE_DESCRIPTIONS[key] || 'Selected signal derived frequency.'
+            });
+        });
+        Object.keys(SIGNAL_ATTRIBUTE_PLACEHOLDERS).forEach(key => {
+            rows.push({
+                key,
+                source: 'Selected signal attributes',
+                meaning: SIGNAL_REFERENCE_DESCRIPTIONS[key] || 'Selected signal attribute value.'
+            });
+        });
+        return rows;
+    }
+
+    function renderReferenceTab() {
+        renderReferenceRows('reference-signal-list', buildSignalReferenceRows());
+        renderReferenceRows('reference-engagement-list', ENGAGEMENT_REFERENCE_ROWS);
     }
 
     function saveConfig() {
@@ -3398,6 +3535,7 @@ STOP|Stop Time|text|1230Z</textarea>
     renderEngagementSignalOptions();
     renderEngagementList();
     renderCapabilityBoards();
+    renderReferenceTab();
     handleSignalBandwidthToggle();
     handleEngagementProbeToggle();
     const timelineWindowSelect = document.getElementById('timeline-window-hours');

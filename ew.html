@@ -131,11 +131,13 @@
                 <div class="field-pair" style="margin-top:6px;">
                     <div>
                         <div class="field-label">Polarization</div>
-                        <input type="text" data-key="ant1-pol" readonly>
+                        <input type="text" data-key="ant1-pol">
+                    </div>
+                    <div>
+                        <div class="field-label">TTF (MHz)</div>
+                        <input type="number" data-key="ant1-ttf" step="0.001" readonly>
                     </div>
                 </div>
-                <div class="field-label">TTF (MHz)</div>
-                <input type="number" data-key="ant1-ttf" step="0.001" readonly>
             </div>
             <div class="card" id="ant-2">
                 <div class="card-header">ANTENNA 02</div>
@@ -157,11 +159,13 @@
                 <div class="field-pair" style="margin-top:6px;">
                     <div>
                         <div class="field-label">Polarization</div>
-                        <input type="text" data-key="ant2-pol" readonly>
+                        <input type="text" data-key="ant2-pol">
+                    </div>
+                    <div>
+                        <div class="field-label">TTF (MHz)</div>
+                        <input type="number" data-key="ant2-ttf" step="0.001" readonly>
                     </div>
                 </div>
-                <div class="field-label">TTF (MHz)</div>
-                <input type="number" data-key="ant2-ttf" step="0.001" readonly>
             </div>
             <div class="card" id="ant-3">
                 <div class="card-header">ANTENNA 03</div>
@@ -183,11 +187,13 @@
                 <div class="field-pair" style="margin-top:6px;">
                     <div>
                         <div class="field-label">Polarization</div>
-                        <input type="text" data-key="ant3-pol" readonly>
+                        <input type="text" data-key="ant3-pol">
+                    </div>
+                    <div>
+                        <div class="field-label">TTF (MHz)</div>
+                        <input type="number" data-key="ant3-ttf" step="0.001" readonly>
                     </div>
                 </div>
-                <div class="field-label">TTF (MHz)</div>
-                <input type="number" data-key="ant3-ttf" step="0.001" readonly>
             </div>
         </div>
 
@@ -195,7 +201,7 @@
             <div class="card lower-panel" id="eng-panel" style="flex: 1 1 55%;">
                 <div class="card-header">ENGAGEMENTS</div>
                 <table id="eng-table">
-                    <thead><tr><th>SOI</th><th>Antenna</th><th>Satellite</th><th>Effect</th><th>IF-DL (MHz)</th><th>TXPDR</th><th>Modem</th><th>EIRP (dBW)</th><th>Start</th><th>Stop</th><th>Status</th></tr></thead>
+                    <thead><tr><th>SOI</th><th>Antenna</th><th>Satellite</th><th>Effect</th><th>IF-DL (MHz)</th><th>TXPDR</th><th>ANB Probe</th><th>Modem</th><th>EIRP (dBW)</th><th>Start</th><th>Stop</th><th>Status</th></tr></thead>
                     <tbody id="eng-body"></tbody>
                 </table>
                 <button class="btn" style="margin-top:5px" onclick="addRow('eng-body')">+ Event</button>
@@ -227,9 +233,9 @@
             { label: 'Tampa Antennas X', band: 'X', downLO: 6300, upLO: 6950 },
             { label: 'X-Band Standard', band: 'X', downLO: 6300, upLO: 7000 },
             { label: 'X-Band Alt', band: 'X', downLO: 6650, upLO: 7000 },
-            { label: 'Airbus Ranger Ku Low', band: 'Ku', downLO: 10000, upLO: 13000 },
-            { label: 'Airbus Ranger Ku Mid', band: 'Ku', downLO: 10750, upLO: 13000 },
-            { label: 'Airbus Ranger Ku High', band: 'Ku', downLO: 11200, upLO: 13000 },
+            { label: 'Airbus Ranger Ku Low', band: 'Ku', downLO: 10000, upLO: 12800 },
+            { label: 'Airbus Ranger Ku Mid', band: 'Ku', downLO: 10750, upLO: 12800 },
+            { label: 'Airbus Ranger Ku High', band: 'Ku', downLO: 11200, upLO: 12800 },
             { label: 'Satlite Ku', band: 'Ku', downLO: 10600, upLO: 13000 },
             { label: 'Hawkeye III Ku Low', band: 'Ku', downLO: 10000, upLO: 13000 },
             { label: 'Hawkeye III Ku Mid', band: 'Ku', downLO: 10750, upLO: 13000 },
@@ -291,8 +297,7 @@
             if (!name) return null;
             const ttf = parseFloat(prompt('TTF MHz:', '2225'));
             if (!Number.isFinite(ttf)) return null;
-            const pol = (prompt('Polarization (e.g. H, V, RHCP):', 'H') || '').trim();
-            return { name, ttf, pol };
+            return { name, ttf };
         }
 
         function populateCardSelect(idx, type, selected) {
@@ -353,9 +358,7 @@
             const satName = (document.querySelector(`[data-key="ant${idx}-sat"]`) || {}).value || '';
             const sat = getSatelliteCatalog().find(item => item.name === satName);
             const ttfEl = document.querySelector(`[data-key="ant${idx}-ttf"]`);
-            const polEl = document.querySelector(`[data-key="ant${idx}-pol"]`);
             if (ttfEl) ttfEl.value = sat ? String(sat.ttf) : '';
-            if (polEl) polEl.value = sat ? (sat.pol || '') : '';
         }
 
         function wattsToDbw(watts) {
@@ -386,7 +389,17 @@
         function buildPowerLogLookup() {
             const saved = JSON.parse(localStorage.getItem('ewPowerLogState') || 'null');
             if (!saved || !Array.isArray(saved.rows)) return {};
-            const antennaType = (saved.antennaType || '1.8 m Dish').toString();
+            const probesByTxpr = {};
+            (Array.isArray(saved.probes) ? saved.probes : []).forEach(entry => {
+                const txpr = (entry && entry.txpr ? String(entry.txpr).trim() : '');
+                if (!txpr) return;
+                probesByTxpr[txpr] = {
+                    antennaType: entry.antennaType || '1.8 m Dish',
+                    channelPower: entry.channelPower,
+                    channelUnit: entry.channelUnit || 'dBm',
+                    eirp: entry.eirp
+                };
+            });
             const cardIndexByAntennaLabel = {};
             [1, 2, 3].forEach(i => {
                 const card = getCardValues(i);
@@ -398,10 +411,13 @@
                 if (!soi) return;
                 const idx = cardIndexByAntennaLabel[(row.antenna || '').toString().trim()];
                 const band = idx ? getCardValues(idx).band : 'Ku';
-                const eirp = computeEirpFromPowerRow(row, band, antennaType);
+                const txpr = (row.txpr || '').toString().trim();
+                const matchedProbe = txpr ? probesByTxpr[txpr] : null;
+                const eirp = computeEirpFromPowerRow(row, band, matchedProbe ? matchedProbe.antennaType : '1.8 m Dish');
                 bySoi[soi] = {
                     modem: row.modem !== undefined ? String(row.modem) : '',
-                    eirp: Number.isFinite(eirp) ? eirp.toFixed(2) : ''
+                    eirp: Number.isFinite(eirp) ? eirp.toFixed(2) : '',
+                    probesByTxpr
                 };
             });
             return bySoi;
@@ -410,12 +426,25 @@
         function applyPowerDataToEngagementRow(row) {
             if (!row) return;
             const soiInput = row.cells[0] ? row.cells[0].querySelector('input') : null;
+            const txpdrInput = row.querySelector('.eng-txpdr');
+            const probeInput = row.querySelector('.eng-probe');
             const modemInput = row.querySelector('.eng-modem');
             const eirpInput = row.querySelector('.eng-eirp');
-            if (!soiInput || !modemInput || !eirpInput) return;
+            if (!soiInput || !txpdrInput || !probeInput || !modemInput || !eirpInput) return;
             const lookup = buildPowerLogLookup();
             const soi = (soiInput.value || '').trim();
             const hit = lookup[soi];
+            const txpdr = (txpdrInput.value || '').trim();
+            const matchedProbe = hit && hit.probesByTxpr ? hit.probesByTxpr[txpdr] : null;
+            if (matchedProbe) {
+                const pwrText = matchedProbe.channelPower !== undefined
+                    ? `${matchedProbe.channelPower} ${matchedProbe.channelUnit || 'dBm'}`
+                    : '';
+                const eirpText = matchedProbe.eirp !== undefined ? `${matchedProbe.eirp} dBW` : '';
+                probeInput.value = `${matchedProbe.antennaType || ''}${pwrText ? ` | ${pwrText}` : ''}${eirpText ? ` | ${eirpText}` : ''}`;
+            } else {
+                probeInput.value = '';
+            }
             if (hit && (hit.modem || '').trim() !== '' && (hit.eirp || '').trim() !== '') {
                 modemInput.value = hit.modem;
                 eirpInput.value = hit.eirp;
@@ -527,7 +556,23 @@
             if (tableId === 'eng-body') {
                 const normalizeEngData = (raw) => {
                     if (!Array.isArray(raw)) {
-                        return { soi: '', antenna: 'ant1', satellite: '', effect: '', ifdl: '', txpdr: '', modem: '', eirp: '', start: '', stop: '', status: 'tasked' };
+                        return { soi: '', antenna: 'ant1', satellite: '', effect: '', ifdl: '', txpdr: '', probe: '', modem: '', eirp: '', start: '', stop: '', status: 'tasked' };
+                    }
+                    if (raw.length >= 12) {
+                        return {
+                            soi: raw[0] || '',
+                            antenna: raw[1] || 'ant1',
+                            satellite: raw[2] || '',
+                            effect: raw[3] || '',
+                            ifdl: raw[4] || '',
+                            txpdr: raw[5] || '',
+                            probe: raw[6] || '',
+                            modem: raw[7] || '',
+                            eirp: raw[8] || '',
+                            start: extractTimeString(raw[9]),
+                            stop: extractTimeString(raw[10]),
+                            status: raw[11] || 'tasked'
+                        };
                     }
                     if (raw.length >= 11) {
                         const looksLegacyWithLoColumns = Number.isFinite(parseFloat(raw[5]))
@@ -540,6 +585,7 @@
                             effect: raw[3] || '',
                             ifdl: raw[4] || '',
                             txpdr: looksLegacyWithLoColumns ? '' : (raw[5] || ''),
+                            probe: '',
                             modem: looksLegacyWithLoColumns ? '' : (raw[6] || ''),
                             eirp: looksLegacyWithLoColumns ? '' : (raw[7] || ''),
                             start: extractTimeString(raw[8]),
@@ -555,6 +601,7 @@
                             effect: raw[3] || '',
                             ifdl: raw[4] || '',
                             txpdr: '',
+                            probe: '',
                             modem: raw[5] || '',
                             eirp: raw[6] || '',
                             start: extractTimeString(raw[7]),
@@ -570,6 +617,7 @@
                             effect: raw[1] || '',
                             ifdl: raw[2] || '',
                             txpdr: '',
+                            probe: '',
                             modem: '',
                             eirp: '',
                             start: extractTimeString(raw[3]),
@@ -585,6 +633,7 @@
                             effect: raw[1] || '',
                             ifdl: raw[2] || '',
                             txpdr: '',
+                            probe: '',
                             modem: '',
                             eirp: '',
                             start: extractTimeString(raw[3]),
@@ -599,6 +648,7 @@
                         effect: '',
                         ifdl: '',
                         txpdr: '',
+                        probe: '',
                         modem: '',
                         eirp: '',
                         start: extractTimeString(raw[1]),
@@ -610,7 +660,7 @@
                 const normalizedStatus = ['tasked', 'ready', 'active', 'inactive'].includes((eng.status || '').toLowerCase())
                     ? eng.status.toLowerCase()
                     : 'tasked';
-                row.innerHTML = `<td><input type="text" value="${eng.soi}"></td><td class="eng-antenna-cell"></td><td><input type="text" class="eng-sat" value="${eng.satellite}" readonly></td><td><input type="text" value="${eng.effect}"></td><td><input type="number" step="0.001" value="${eng.ifdl}"></td><td><input type="text" class="eng-txpdr" value="${eng.txpdr || ''}"></td><td><input type="text" class="eng-modem readonly-disabled" value="${eng.modem}" readonly disabled></td><td><input type="text" class="eng-eirp readonly-disabled" value="${eng.eirp}" readonly disabled></td><td><input type="text" class="eng-time" inputmode="numeric" placeholder="HH:MM" title="Zulu time HH:MM (24h)" value="${eng.start}"></td><td><input type="text" inputmode="numeric" placeholder="HH:MM" title="Zulu time HH:MM (24h)" value="${eng.stop}"></td><td><select><option value="tasked">TASKED</option><option value="ready">READY</option><option value="active">ACTIVE</option><option value="inactive">INACTIVE</option></select></td>`;
+                row.innerHTML = `<td><input type="text" value="${eng.soi}"></td><td class="eng-antenna-cell"></td><td><input type="text" class="eng-sat" value="${eng.satellite}" readonly></td><td><input type="text" value="${eng.effect}"></td><td><input type="number" step="0.001" value="${eng.ifdl}"></td><td><input type="text" class="eng-txpdr" value="${eng.txpdr || ''}"></td><td><input type="text" class="eng-probe readonly-disabled" value="${eng.probe || ''}" readonly></td><td><input type="text" class="eng-modem readonly-disabled" value="${eng.modem}" readonly disabled></td><td><input type="text" class="eng-eirp readonly-disabled" value="${eng.eirp}" readonly disabled></td><td><input type="text" class="eng-time" inputmode="numeric" placeholder="HH:MM" title="Zulu time HH:MM (24h)" value="${eng.start}"></td><td><input type="text" inputmode="numeric" placeholder="HH:MM" title="Zulu time HH:MM (24h)" value="${eng.stop}"></td><td><select><option value="tasked">TASKED</option><option value="ready">READY</option><option value="active">ACTIVE</option><option value="inactive">INACTIVE</option></select></td>`;
                 const antCell = row.querySelector('.eng-antenna-cell');
                 const antSelect = document.createElement('select');
                 antSelect.className = 'eng-antenna-select';
@@ -634,6 +684,10 @@
                 const soiInput = row.cells[0].querySelector('input');
                 if (soiInput) {
                     soiInput.addEventListener('input', () => applyPowerDataToEngagementRow(row));
+                }
+                const txpdrInput = row.querySelector('.eng-txpdr');
+                if (txpdrInput) {
+                    txpdrInput.addEventListener('input', () => applyPowerDataToEngagementRow(row));
                 }
                 applyEngagementAntennaDetails(row);
                 applyPowerDataToEngagementRow(row);

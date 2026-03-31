@@ -95,6 +95,83 @@
             margin-top: 4px;
             margin-left: 4px;
         }
+
+        .tle-panel {
+            background: #f8f9ff;
+            border: 1px solid #dfe4ff;
+            border-radius: 14px;
+            padding: 14px;
+            margin-bottom: 18px;
+        }
+
+        .tle-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .tle-actions button {
+            padding: 10px;
+            border-radius: 10px;
+            font-size: 14px;
+        }
+
+        .tle-status {
+            font-size: 12px;
+            margin-top: 8px;
+            padding: 8px;
+            border-radius: 8px;
+            background: #e3f2fd;
+            color: #1976d2;
+            display: none;
+        }
+
+        .tle-results {
+            margin-top: 10px;
+            display: none;
+        }
+
+        .tle-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            background: #fff;
+            border: 1px solid #e7e7e7;
+            border-radius: 10px;
+            padding: 8px 10px;
+            margin-bottom: 8px;
+        }
+
+        .tle-item-name {
+            font-size: 13px;
+            color: #222;
+            font-weight: 600;
+        }
+
+        .tle-item-meta {
+            font-size: 11px;
+            color: #666;
+        }
+
+        .tle-import-btn {
+            flex: 0 0 auto;
+            padding: 8px 10px;
+            font-size: 12px;
+            background: #4caf50;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .tle-imported {
+            margin-top: 8px;
+            font-size: 12px;
+            color: #2e7d32;
+            font-weight: 600;
+            display: none;
+        }
         
         .location-button {
             width: 100%;
@@ -423,6 +500,20 @@
             <div class="helper-text">Negative for West (e.g., -101 for SES-1)</div>
         </div>
 
+        <div class="tle-panel">
+            <label>Satellite Search (CelesTrak TLE)</label>
+            <div class="input-wrapper">
+                <input type="text" id="tleQuery" placeholder="e.g., SES, GALAXY, INTELSAT">
+            </div>
+            <div class="tle-actions">
+                <button class="secondary" type="button" onclick="searchTleSatellites()">Search Top 5</button>
+                <button class="primary" type="button" onclick="calculateFromSelectedTle()">TLE Calculations</button>
+            </div>
+            <div class="tle-status" id="tleStatus"></div>
+            <div class="tle-imported" id="tleImported"></div>
+            <div class="tle-results" id="tleResults"></div>
+        </div>
+
         <div class="input-group">
             <label>Polarization Angle Range</label>
             <div class="input-wrapper">
@@ -513,12 +604,24 @@
         </div>
     </div>
 
+    <script src="https://unpkg.com/satellite.js@5.0.0/dist/satellite.min.js"></script>
     <script>
+        let celestrakActiveCatalog = null;
+        let tleSearchResults = [];
+        let selectedTle = null;
+
         // Initialize with default values and calculate on load
         window.onload = function() {
             calculateSkew();
             checkIfOffline();
             checkLocationPermission();
+
+            document.getElementById('tleQuery').addEventListener('keydown', function(event) {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    searchTleSatellites();
+                }
+            });
         };
         
         function checkIfOffline() {
@@ -654,6 +757,497 @@
             if (angle < 0) angle += 360;
             return angle;
         }
+
+        function computeLookAnglesFromEcf(observerLatDeg, observerLonDeg, satelliteEcf) {
+            const latRad = observerLatDeg * Math.PI / 180;
+            const lonRad = observerLonDeg * Math.PI / 180;
+
+            const observerEcf = satellite.geodeticToEcf({
+                latitude: satellite.degreesToRadians(observerLatDeg),
+                longitude: satellite.degreesToRadians(observerLonDeg),
+                height: 0
+            });
+
+            const rx = satelliteEcf.x - observerEcf.x;
+            const ry = satelliteEcf.y - observerEcf.y;
+            const rz = satelliteEcf.z - observerEcf.z;
+
+            // ECEF to local ENU basis at observer location.
+            const east = -Math.sin(lonRad) * rx + Math.cos(lonRad) * ry;
+            const north =
+                -Math.sin(latRad) * Math.cos(lonRad) * rx
+                - Math.sin(latRad) * Math.sin(lonRad) * ry
+                + Math.cos(latRad) * rz;
+            const up =
+                Math.cos(latRad) * Math.cos(lonRad) * rx
+                + Math.cos(latRad) * Math.sin(lonRad) * ry
+                + Math.sin(latRad) * rz;
+
+            const azimuthDeg = fullCircleAngle(Math.atan2(east, north) * 180 / Math.PI);
+            const elevationDeg = Math.atan2(up, Math.sqrt(east * east + north * north)) * 180 / Math.PI;
+
+            return {
+                azimuthDeg,
+                elevationDeg
+            };
+        }
+
+        async function fetchActiveTleCatalog() {
+            if (celestrakActiveCatalog) {
+                return celestrakActiveCatalog;
+            }
+
+            const baseUrl = 'https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle';
+            const urls = [
+                baseUrl,
+                `https://www.celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle`,
+                `https://api.allorigins.win/raw?url=${encodeURIComponent(baseUrl)}`,
+                `https://corsproxy.io/?${encodeURIComponent(baseUrl)}`
+            ];
+
+            let lastError = null;
+
+            for (const url of urls) {
+                try {
+                    const response = await fetch(url, { cache: 'no-store' });
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+
+                    const tleText = await response.text();
+                    const parsed = parseTleText(tleText);
+                    if (!parsed.length) {
+                        throw new Error('Received data but no valid TLE entries were parsed');
+                    }
+
+                    celestrakActiveCatalog = parsed;
+                    return celestrakActiveCatalog;
+                } catch (error) {
+                    lastError = error;
+                }
+            }
+
+            throw new Error(lastError ? lastError.message : 'Unable to fetch TLE catalog');
+        }
+
+        function dedupeTleEntries(entries) {
+            const seen = new Set();
+            return entries.filter(item => {
+                const key = `${item.noradId}|${item.name}`;
+                if (seen.has(key)) {
+                    return false;
+                }
+                seen.add(key);
+                return true;
+            });
+        }
+
+        function normalizeSatName(name) {
+            return (name || '')
+                .toUpperCase()
+                .replace(/[^A-Z0-9]/g, '');
+        }
+
+        function classifyOrbitByMeanMotion(meanMotionRevPerDay) {
+            if (!Number.isFinite(meanMotionRevPerDay)) {
+                return 'Unknown';
+            }
+
+            if (meanMotionRevPerDay > 0.95 && meanMotionRevPerDay < 1.05) {
+                return 'GEO';
+            }
+            if (meanMotionRevPerDay >= 2 && meanMotionRevPerDay <= 16) {
+                return 'MEO';
+            }
+            if (meanMotionRevPerDay > 16) {
+                return 'LEO';
+            }
+
+            return 'HEO';
+        }
+
+        function withTleMetadata(entry) {
+            const line2 = entry && entry.line2 ? entry.line2 : '';
+            const inclinationDeg = parseFloat(line2.substring(8, 16));
+            const meanMotionRevPerDay = parseFloat(line2.substring(52, 63));
+
+            return {
+                ...entry,
+                inclinationDeg,
+                meanMotionRevPerDay,
+                orbitClass: classifyOrbitByMeanMotion(meanMotionRevPerDay)
+            };
+        }
+
+        function rankTleMatches(entries, rawQuery) {
+            const normalizedQuery = normalizeSatName(rawQuery);
+
+            return entries
+                .map(withTleMetadata)
+                .sort((a, b) => {
+                    const aNorm = normalizeSatName(a.name);
+                    const bNorm = normalizeSatName(b.name);
+
+                    const aExact = aNorm === normalizedQuery ? 1 : 0;
+                    const bExact = bNorm === normalizedQuery ? 1 : 0;
+                    if (aExact !== bExact) {
+                        return bExact - aExact;
+                    }
+
+                    const aStarts = aNorm.startsWith(normalizedQuery) ? 1 : 0;
+                    const bStarts = bNorm.startsWith(normalizedQuery) ? 1 : 0;
+                    if (aStarts !== bStarts) {
+                        return bStarts - aStarts;
+                    }
+
+                    const aGeo = a.orbitClass === 'GEO' ? 1 : 0;
+                    const bGeo = b.orbitClass === 'GEO' ? 1 : 0;
+                    if (aGeo !== bGeo) {
+                        return bGeo - aGeo;
+                    }
+
+                    return a.name.localeCompare(b.name);
+                });
+        }
+
+        async function fetchTleByName(query) {
+            const encoded = encodeURIComponent(query.trim());
+            const primary = `https://celestrak.org/NORAD/elements/gp.php?NAME=${encoded}&FORMAT=tle`;
+            const urls = [
+                primary,
+                `https://www.celestrak.org/NORAD/elements/gp.php?NAME=${encoded}&FORMAT=tle`,
+                `https://www.celestrak.com/NORAD/elements/gp.php?NAME=${encoded}&FORMAT=tle`,
+                `https://api.allorigins.win/raw?url=${encodeURIComponent(primary)}`,
+                `https://corsproxy.io/?${encodeURIComponent(primary)}`
+            ];
+
+            let lastError = null;
+
+            for (const url of urls) {
+                try {
+                    const response = await fetch(url, { cache: 'no-store' });
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status} from ${new URL(url).hostname}`);
+                    }
+
+                    const tleText = await response.text();
+                    const parsed = dedupeTleEntries(parseTleText(tleText));
+                    if (!parsed.length) {
+                        throw new Error(`No TLE matches from ${new URL(url).hostname}`);
+                    }
+
+                    return parsed;
+                } catch (error) {
+                    lastError = error;
+                }
+            }
+
+            throw new Error(lastError ? lastError.message : 'Unable to search CelesTrak by name');
+        }
+
+        function parseTleText(tleText) {
+            const lines = tleText
+                .split(/\r?\n/)
+                .map(line => line.trim())
+                .filter(line => line.length > 0);
+
+            const entries = [];
+            for (let i = 0; i < lines.length - 2; i++) {
+                const name = lines[i];
+                const line1 = lines[i + 1];
+                const line2 = lines[i + 2];
+
+                if (!line1.startsWith('1 ') || !line2.startsWith('2 ')) {
+                    continue;
+                }
+
+                entries.push({
+                    name,
+                    line1,
+                    line2,
+                    noradId: line1.substring(2, 7).trim()
+                });
+                i += 2;
+            }
+
+            return entries;
+        }
+
+        async function searchTleSatellites() {
+            const rawQuery = document.getElementById('tleQuery').value.trim();
+            const query = rawQuery.toLowerCase();
+            const tleStatus = document.getElementById('tleStatus');
+            const tleResults = document.getElementById('tleResults');
+
+            if (!rawQuery) {
+                alert('Enter a satellite name to search');
+                return;
+            }
+
+            tleStatus.style.display = 'block';
+            tleStatus.style.background = '#E3F2FD';
+            tleStatus.style.color = '#1976D2';
+            tleStatus.textContent = 'Searching CelesTrak TLE database...';
+            tleResults.style.display = 'none';
+
+            try {
+                // First try direct name search; fall back to active catalog filter if needed.
+                let results = [];
+                try {
+                    results = await fetchTleByName(rawQuery);
+                } catch (nameSearchError) {
+                    const catalog = await fetchActiveTleCatalog();
+                    results = catalog.filter(item => item.name.toLowerCase().includes(query));
+                }
+
+                const deduped = dedupeTleEntries(results);
+                tleSearchResults = rankTleMatches(deduped, rawQuery).slice(0, 5);
+
+                if (tleSearchResults.length === 0) {
+                    tleStatus.style.background = '#FFF3E0';
+                    tleStatus.style.color = '#E65100';
+                    tleStatus.textContent = 'No matches found in active catalog';
+                    tleResults.innerHTML = '';
+                    return;
+                }
+
+                tleStatus.style.background = '#E8F5E8';
+                tleStatus.style.color = '#2E7D32';
+                tleStatus.textContent = `Found ${tleSearchResults.length} result(s) - choose one to import`;
+
+                renderTleResults();
+            } catch (error) {
+                tleStatus.style.background = '#FFEBEE';
+                tleStatus.style.color = '#C62828';
+                const detail = error && error.message ? error.message : 'unknown error';
+                tleStatus.textContent = `Search failed. ${detail}.`;
+            }
+        }
+
+        function renderTleResults() {
+            const tleResults = document.getElementById('tleResults');
+
+            tleResults.innerHTML = tleSearchResults
+                .map((item, index) => `
+                    <div class="tle-item">
+                        <div>
+                            <div class="tle-item-name">${item.name}</div>
+                            <div class="tle-item-meta">NORAD ${item.noradId} • ${item.orbitClass} • n=${Number.isFinite(item.meanMotionRevPerDay) ? item.meanMotionRevPerDay.toFixed(4) : 'n/a'} rev/day • i=${Number.isFinite(item.inclinationDeg) ? item.inclinationDeg.toFixed(2) : 'n/a'}°</div>
+                        </div>
+                        <button class="tle-import-btn" type="button" onclick="importTleSelection(${index})">Import</button>
+                    </div>
+                `)
+                .join('');
+
+            tleResults.style.display = 'block';
+        }
+
+        async function importTleSelection(index) {
+            const tleStatus = document.getElementById('tleStatus');
+            const imported = document.getElementById('tleImported');
+
+            selectedTle = tleSearchResults[index] || null;
+            if (!selectedTle) {
+                return;
+            }
+
+            imported.style.display = 'block';
+            imported.textContent = `Imported: ${selectedTle.name} (NORAD ${selectedTle.noradId})`;
+
+            // Update satellite longitude field using current propagated sub-satellite longitude.
+            const point = getTleSubsatellitePoint(selectedTle, new Date());
+            if (point) {
+                document.getElementById('sat').value = point.lon.toFixed(2);
+                tleStatus.style.display = 'block';
+                tleStatus.style.background = '#E8F5E8';
+                tleStatus.style.color = '#2E7D32';
+                tleStatus.textContent = `Imported ${selectedTle.name}. Current subsatellite point: lat ${point.lat.toFixed(2)} deg, lon ${point.lon.toFixed(2)} deg`;
+            } else {
+                tleStatus.style.display = 'block';
+                tleStatus.style.background = '#FFF3E0';
+                tleStatus.style.color = '#E65100';
+                tleStatus.textContent = `Imported ${selectedTle.name}. Could not derive current subsatellite longitude.`;
+            }
+        }
+
+        function getTleSubsatellitePoint(tle, timestamp) {
+            if (!tle || typeof satellite === 'undefined') {
+                return null;
+            }
+
+            const satrec = satellite.twoline2satrec(tle.line1, tle.line2);
+            const pv = satellite.propagate(satrec, timestamp);
+
+            if (!pv.position) {
+                return null;
+            }
+
+            const gmst = satellite.gstime(timestamp);
+            const geodetic = satellite.eciToGeodetic(pv.position, gmst);
+
+            return {
+                lat: satellite.degreesLat(geodetic.latitude),
+                lon: satellite.degreesLong(geodetic.longitude),
+                altKm: geodetic.height
+            };
+        }
+
+        function calculateSkewFromLongitudes(observerLat, observerLon, satelliteLon) {
+            const latRad = observerLat * Math.PI / 180;
+            const deltaLon = (satelliteLon - observerLon) * Math.PI / 180;
+
+            let skewRad = Math.atan2(
+                Math.sin(deltaLon),
+                Math.tan(latRad)
+            );
+            let skewDeg = skewRad * 180 / Math.PI;
+
+
+                    function calculateSkewFromTleGeometry(observerLatDeg, observerLonDeg, satelliteEcf, subsatLatDeg, subsatLonDeg) {
+                        const observerGd = {
+                            latitude: satellite.degreesToRadians(observerLatDeg),
+                            longitude: satellite.degreesToRadians(observerLonDeg),
+                            height: 0
+                        };
+                        const observerEcf = satellite.geodeticToEcf(observerGd);
+
+                        const los = normalizeVector({
+                            x: satelliteEcf.x - observerEcf.x,
+                            y: satelliteEcf.y - observerEcf.y,
+                            z: satelliteEcf.z - observerEcf.z
+                        });
+
+                        const observerUp = normalizeVector(observerEcf);
+                        const verticalRef = normalizeVector(projectOntoPlane(observerUp, los));
+
+                        const subsatLatRad = satellite.degreesToRadians(subsatLatDeg);
+                        const subsatLonRad = satellite.degreesToRadians(subsatLonDeg);
+                        const satNorth = {
+                            x: -Math.sin(subsatLatRad) * Math.cos(subsatLonRad),
+                            y: -Math.sin(subsatLatRad) * Math.sin(subsatLonRad),
+                            z: Math.cos(subsatLatRad)
+                        };
+                        const polarizationRef = normalizeVector(projectOntoPlane(satNorth, los));
+
+                        if (!verticalRef || !polarizationRef) {
+                            return 0;
+                        }
+
+                        const signedRad = Math.atan2(
+                            dotProduct(los, crossProduct(verticalRef, polarizationRef)),
+                            dotProduct(verticalRef, polarizationRef)
+                        );
+
+                        return signedRad * 180 / Math.PI;
+                    }
+
+                    function normalizeVector(v) {
+                        const mag = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+                        if (mag < 1e-12) {
+                            return null;
+                        }
+
+                        return {
+                            x: v.x / mag,
+                            y: v.y / mag,
+                            z: v.z / mag
+                        };
+                    }
+
+                    function dotProduct(a, b) {
+                        return a.x * b.x + a.y * b.y + a.z * b.z;
+                    }
+
+                    function crossProduct(a, b) {
+                        return {
+                            x: a.y * b.z - a.z * b.y,
+                            y: a.z * b.x - a.x * b.z,
+                            z: a.x * b.y - a.y * b.x
+                        };
+                    }
+
+                    function projectOntoPlane(v, planeNormal) {
+                        const scale = dotProduct(v, planeNormal);
+
+                        return {
+                            x: v.x - scale * planeNormal.x,
+                            y: v.y - scale * planeNormal.y,
+                            z: v.z - scale * planeNormal.z
+                        };
+                    }
+            if (observerLat < 0) {
+                skewDeg = -skewDeg;
+            }
+
+            return skewDeg;
+        }
+
+        function calculateFromSelectedTle() {
+            const lat = parseFloat(document.getElementById('lat').value);
+            const lon = parseFloat(document.getElementById('lon').value);
+
+            if (isNaN(lat) || isNaN(lon)) {
+                alert('Please enter valid latitude/longitude values first');
+                return;
+            }
+
+            if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+                alert('Latitude must be -90 to 90 and longitude must be -180 to 180');
+                return;
+            }
+
+            if (!selectedTle) {
+                alert('Search and import a satellite TLE first');
+                return;
+            }
+
+            if (selectedTle.orbitClass !== 'GEO') {
+                const proceed = confirm(`Selected object is classified as ${selectedTle.orbitClass}, not GEO. Az/El may differ greatly from fixed GEO calculators. Continue?`);
+                if (!proceed) {
+                    return;
+                }
+            }
+
+            if (typeof satellite === 'undefined') {
+                alert('TLE library not loaded. Check internet access and retry.');
+                return;
+            }
+
+            const now = new Date();
+            const satrec = satellite.twoline2satrec(selectedTle.line1, selectedTle.line2);
+            const pv = satellite.propagate(satrec, now);
+
+            if (!pv.position) {
+                alert('Could not propagate satellite position from TLE');
+                return;
+            }
+
+            const gmst = satellite.gstime(now);
+            const satelliteEcf = satellite.eciToEcf(pv.position, gmst);
+            const lookAngles = computeLookAnglesFromEcf(lat, lon, satelliteEcf);
+            const azimuthDeg = lookAngles.azimuthDeg;
+            const elevationDeg = lookAngles.elevationDeg;
+
+            const subsat = getTleSubsatellitePoint(selectedTle, now);
+            if (!subsat) {
+                alert('Could not derive subsatellite point from TLE');
+                return;
+            }
+
+            document.getElementById('sat').value = subsat.lon.toFixed(2);
+            const skewDeg = calculateSkewFromTleGeometry(lat, lon, satelliteEcf, subsat.lat, subsat.lon);
+            const angleRange = document.getElementById('angleRange').value;
+
+            renderResults(
+                azimuthDeg,
+                elevationDeg,
+                skewDeg,
+                lat,
+                lon,
+                angleRange,
+                `TLE mode: ${selectedTle.name} at ${now.toUTCString()}<br>Subsat point: ${subsat.lat.toFixed(2)}° lat, ${subsat.lon.toFixed(2)}° lon, ${subsat.altKm.toFixed(0)} km alt`
+            );
+        }
         
         function calculateSkew() {
             const lat = parseFloat(document.getElementById('lat').value);
@@ -692,51 +1286,35 @@
             );
             let elevationDeg = elevationRad * 180 / Math.PI;
             
-            // Calculate azimuth
-            let azimuthRad;
-            if (Math.abs(Math.sin(deltaLon)) < 0.0001) {
-                azimuthRad = 0;
-            } else {
-                azimuthRad = Math.atan2(
-                    Math.tan(deltaLon),
-                    Math.sin(latRad)
-                );
-            }
-            
-            let azimuthDeg = azimuthRad * 180 / Math.PI;
-            
-            // Adjust azimuth based on satellite position relative to observer
-            if (satLon < lon) {
-                // Satellite West
-                azimuthDeg = 180 - azimuthDeg;
-            } else {
-                // Satellite East
-                azimuthDeg = 180 + azimuthDeg;
-            }
-            
-            // Normalize azimuth to 0-360
-            azimuthDeg = (azimuthDeg + 360) % 360;
+            // Calculate azimuth clockwise from true north.
+            let azimuthDeg = fullCircleAngle(
+                Math.atan2(
+                    Math.sin(deltaLon),
+                    -Math.cos(deltaLon) * Math.sin(latRad)
+                ) * 180 / Math.PI
+            );
             
             // Calculate polarization skew
-            let skewRad = Math.atan2(
-                Math.sin(deltaLon),
-                Math.tan(latRad)
+            let skewDeg = calculateSkewFromLongitudes(lat, lon, satLon);
+
+            const angleRange = document.getElementById('angleRange').value;
+            renderResults(
+                azimuthDeg,
+                elevationDeg,
+                skewDeg,
+                lat,
+                lon,
+                angleRange,
+                'Manual GEO longitude mode'
             );
-            let skewDeg = skewRad * 180 / Math.PI;
-            
-            // Adjust skew sign based on hemisphere
-            if (lat < 0) { // Southern Hemisphere
-                skewDeg = -skewDeg;
-            }
-            
+        }
+
+        function renderResults(azimuthDeg, elevationDeg, skewDeg, lat, lon, angleRange, sourceLabel) {
             // Calculate H/V polarization angles
             // Vertical: reference at 0° + skew
             // Horizontal: reference at 90° + skew
             let rawVertical = skewDeg;
             let rawHorizontal = 90 + skewDeg;
-            
-            // Get selected angle range
-            const angleRange = document.getElementById('angleRange').value;
 
             let verticalAngle, horizontalAngle;
             if (angleRange === 'normalized') {
@@ -828,7 +1406,7 @@
 
             // Update formula note
             const formulaNote = document.getElementById('formulaNote');
-            formulaNote.innerHTML = `📍 ${Math.abs(lat).toFixed(4)}°${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lon).toFixed(4)}°${lon >= 0 ? 'E' : 'W'} • All angles ${angleRange === 'normalized' ? 'normalized to -90° to +90°' : 'shown as 0° to 360°'}`;
+            formulaNote.innerHTML = `📍 ${Math.abs(lat).toFixed(4)}°${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lon).toFixed(4)}°${lon >= 0 ? 'E' : 'W'} • All angles ${angleRange === 'normalized' ? 'normalized to -90° to +90°' : 'shown as 0° to 360°'}<br>🛰️ ${sourceLabel}`;
         }
         
         function getCompassDirection(azimuth) {
