@@ -23,7 +23,7 @@
         }
         
         .container {
-            max-width: 500px;
+            max-width: 760px;
             width: 100%;
             background: white;
             border-radius: 24px;
@@ -108,11 +108,30 @@
             display: flex;
             gap: 8px;
             margin-top: 10px;
+            flex-wrap: wrap;
         }
 
         .tle-actions button {
             padding: 10px;
             border-radius: 10px;
+            font-size: 14px;
+        }
+
+        .tle-source-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .tle-source-row select {
+            flex: 1 1 220px;
+            min-width: 180px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid #d5d5d5;
+            background: #fff;
             font-size: 14px;
         }
 
@@ -129,6 +148,55 @@
         .tle-results {
             margin-top: 10px;
             display: none;
+        }
+
+        .desktop-note {
+            font-size: 12px;
+            margin-top: 8px;
+            padding: 8px;
+            border-radius: 8px;
+            background: #fff3e0;
+            color: #8a4b00;
+            display: none;
+        }
+
+        .tle-manual {
+            margin-top: 10px;
+            background: #ffffff;
+            border: 1px solid #e7e7e7;
+            border-radius: 10px;
+            padding: 10px;
+        }
+
+        .tle-manual textarea {
+            width: 100%;
+            min-height: 88px;
+            resize: vertical;
+            font-family: Consolas, 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+            padding: 10px;
+            border: 1px solid #d5d5d5;
+            border-radius: 8px;
+            background: #fafafa;
+        }
+
+        .tle-manual .helper-text {
+            margin-left: 0;
+            margin-bottom: 6px;
+        }
+
+        .desktop-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            align-items: start;
+        }
+
+        @media (min-width: 960px) {
+            .container {
+                padding: 28px;
+            }
         }
 
         .tle-item {
@@ -451,6 +519,30 @@
                 padding: 16px;
             }
         }
+
+        @media (max-width: 860px) {
+            .desktop-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (hover: hover) {
+            .location-button:hover {
+                background: #1e88e5;
+            }
+
+            button.primary:hover {
+                background: #43a047;
+            }
+
+            button.secondary:hover {
+                background: #e8e8e8;
+            }
+
+            .tle-import-btn:hover {
+                background: #43a047;
+            }
+        }
     </style>
 </head>
 <body>
@@ -501,17 +593,38 @@
         </div>
 
         <div class="tle-panel">
-            <label>Satellite Search (CelesTrak TLE)</label>
-            <div class="input-wrapper">
-                <input type="text" id="tleQuery" placeholder="e.g., SES, GALAXY, INTELSAT">
+            <label>Satellite Search (TLE Source)</label>
+            <div class="desktop-row">
+                <div>
+                    <div class="input-wrapper">
+                        <input type="text" id="tleQuery" placeholder="e.g., SES-3 or NORAD 37748">
+                    </div>
+                    <div class="tle-source-row">
+                        <select id="tleSource">
+                            <option value="celestrak" selected>CelesTrak</option>
+                            <option value="spacetrack">Space-Track.org</option>
+                        </select>
+                        <button class="secondary" type="button" onclick="clearSpaceTrackCredentials()">Clear Space-Track Login</button>
+                    </div>
+                    <div class="helper-text">Search by satellite name or numeric NORAD ID. Space-Track mode will prompt for username/password when needed.</div>
+                    <div class="tle-actions">
+                        <button class="secondary" type="button" onclick="searchTleSatellites()">Search Top 5</button>
+                        <button class="primary" type="button" onclick="calculateFromSelectedTle()">TLE Calculations</button>
+                    </div>
+                    <div class="desktop-note" id="desktopNote"></div>
+                    <div class="tle-status" id="tleStatus"></div>
+                    <div class="tle-imported" id="tleImported"></div>
+                    <div class="tle-results" id="tleResults"></div>
+                </div>
+
+                <div class="tle-manual">
+                    <div class="helper-text">Desktop fallback: paste 3-line TLE then import.</div>
+                    <textarea id="manualTleText" placeholder="SES-3&#10;1 37748U 11035A   26090.12345678  .00000034  00000+0  00000+0 0  9993&#10;2 37748   1.1300 123.4500 0001234 210.0000 145.0000 1.00270000 54321"></textarea>
+                    <div class="tle-actions" style="margin-top:8px;">
+                        <button class="secondary" type="button" onclick="importManualTle()">Import Pasted TLE</button>
+                    </div>
+                </div>
             </div>
-            <div class="tle-actions">
-                <button class="secondary" type="button" onclick="searchTleSatellites()">Search Top 5</button>
-                <button class="primary" type="button" onclick="calculateFromSelectedTle()">TLE Calculations</button>
-            </div>
-            <div class="tle-status" id="tleStatus"></div>
-            <div class="tle-imported" id="tleImported"></div>
-            <div class="tle-results" id="tleResults"></div>
         </div>
 
         <div class="input-group">
@@ -609,6 +722,7 @@
         let celestrakActiveCatalog = null;
         let tleSearchResults = [];
         let selectedTle = null;
+        let spaceTrackCredentials = null;
 
         // Initialize with default values and calculate on load
         window.onload = function() {
@@ -622,6 +736,18 @@
                     searchTleSatellites();
                 }
             });
+
+            document.getElementById('tleSource').addEventListener('change', function() {
+                const tleStatus = document.getElementById('tleStatus');
+                tleStatus.style.display = 'block';
+                tleStatus.style.background = '#E3F2FD';
+                tleStatus.style.color = '#1976D2';
+                if (getSelectedTleSource() === 'spacetrack') {
+                    tleStatus.textContent = 'Space-Track source selected. You will be prompted for login during search.';
+                } else {
+                    tleStatus.textContent = 'CelesTrak source selected.';
+                }
+            });
         };
         
         function checkIfOffline() {
@@ -630,7 +756,52 @@
                 document.getElementById('downloadHint').innerHTML = '✅ Saved! You can use this app offline anytime.';
                 document.getElementById('saveBtn').disabled = true;
                 document.getElementById('saveBtn').style.opacity = '0.5';
+                const desktopNote = document.getElementById('desktopNote');
+                desktopNote.style.display = 'block';
+                desktopNote.textContent = 'Desktop browser note: use the Python backend server for reliable TLE search (CelesTrak/Space-Track). Open via http://localhost:8000 instead of file://.';
             }
+        }
+
+        function getSelectedTleSource() {
+            const sourceEl = document.getElementById('tleSource');
+            return sourceEl ? sourceEl.value : 'celestrak';
+        }
+
+        function detectTleQueryMode(rawQuery) {
+            const cleaned = (rawQuery || '').trim();
+            return /^\d{3,7}$/.test(cleaned) ? 'norad' : 'name';
+        }
+
+        function clearSpaceTrackCredentials() {
+            spaceTrackCredentials = null;
+            const tleStatus = document.getElementById('tleStatus');
+            tleStatus.style.display = 'block';
+            tleStatus.style.background = '#E3F2FD';
+            tleStatus.style.color = '#1976D2';
+            tleStatus.textContent = 'Cleared saved Space-Track login for this page session.';
+        }
+
+        function getSpaceTrackCredentialsFromPrompt() {
+            if (spaceTrackCredentials && spaceTrackCredentials.username && spaceTrackCredentials.password) {
+                return spaceTrackCredentials;
+            }
+
+            const username = prompt('Space-Track username (email):', spaceTrackCredentials && spaceTrackCredentials.username ? spaceTrackCredentials.username : '');
+            if (!username) {
+                return null;
+            }
+
+            const password = prompt('Space-Track password:');
+            if (!password) {
+                return null;
+            }
+
+            spaceTrackCredentials = {
+                username: username.trim(),
+                password
+            };
+
+            return spaceTrackCredentials;
         }
         
         function checkLocationPermission() {
@@ -638,6 +809,15 @@
             if (!navigator.geolocation) {
                 document.getElementById('locationBtn').disabled = true;
                 document.getElementById('locationBtn').innerHTML = '📍 Geolocation not supported';
+                return;
+            }
+
+            if (!window.isSecureContext && window.location.protocol !== 'file:') {
+                const locationStatus = document.getElementById('locationStatus');
+                locationStatus.style.display = 'block';
+                locationStatus.style.background = '#FFF3E0';
+                locationStatus.style.color = '#8a4b00';
+                locationStatus.textContent = 'Location in desktop browsers requires HTTPS or localhost.';
             }
         }
         
@@ -820,7 +1000,10 @@
                         throw new Error('Received data but no valid TLE entries were parsed');
                     }
 
-                    celestrakActiveCatalog = parsed;
+                    celestrakActiveCatalog = parsed.map(item => ({
+                        ...item,
+                        source: 'CelesTrak'
+                    }));
                     return celestrakActiveCatalog;
                 } catch (error) {
                     lastError = error;
@@ -931,7 +1114,10 @@
                     }
 
                     const tleText = await response.text();
-                    const parsed = dedupeTleEntries(parseTleText(tleText));
+                    const parsed = dedupeTleEntries(parseTleText(tleText)).map(item => ({
+                        ...item,
+                        source: 'CelesTrak'
+                    }));
                     if (!parsed.length) {
                         throw new Error(`No TLE matches from ${new URL(url).hostname}`);
                     }
@@ -943,6 +1129,103 @@
             }
 
             throw new Error(lastError ? lastError.message : 'Unable to search CelesTrak by name');
+        }
+
+        async function fetchSpaceTrackByName(query) {
+            const creds = getSpaceTrackCredentialsFromPrompt();
+            if (!creds) {
+                throw new Error('Space-Track login canceled');
+            }
+
+            const loginResponse = await fetch('https://www.space-track.org/ajaxauth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: `identity=${encodeURIComponent(creds.username)}&password=${encodeURIComponent(creds.password)}`,
+                credentials: 'include',
+                mode: 'cors',
+                cache: 'no-store'
+            });
+
+            if (!loginResponse.ok) {
+                spaceTrackCredentials = null;
+                throw new Error(`Space-Track login failed (HTTP ${loginResponse.status})`);
+            }
+
+            const encodedQuery = encodeURIComponent(query.trim());
+            const urls = [
+                `https://www.space-track.org/basicspacedata/query/class/tle_latest/OBJECT_NAME/${encodedQuery}/ORDINAL/1/orderby/EPOCH%20desc/format/tle`,
+                `https://www.space-track.org/basicspacedata/query/class/gp/OBJECT_NAME/${encodedQuery}/orderby/EPOCH%20desc/limit/200/format/tle`,
+                `https://www.space-track.org/basicspacedata/query/class/gp/OBJECT_NAME/~~${encodedQuery}/orderby/EPOCH%20desc/limit/200/format/tle`
+            ];
+
+            let lastError = null;
+
+            for (const url of urls) {
+                try {
+                    const response = await fetch(url, {
+                        credentials: 'include',
+                        mode: 'cors',
+                        cache: 'no-store'
+                    });
+
+                    if (!response.ok) {
+                        if (response.status === 401 || response.status === 403) {
+                            spaceTrackCredentials = null;
+                        }
+                        throw new Error(`HTTP ${response.status} from Space-Track query`);
+                    }
+
+                    const tleText = await response.text();
+                    const parsed = dedupeTleEntries(parseTleText(tleText)).map(item => ({
+                        ...item,
+                        source: 'Space-Track'
+                    }));
+
+                    if (!parsed.length) {
+                        throw new Error('No Space-Track TLE matches for that name');
+                    }
+
+                    return parsed;
+                } catch (error) {
+                    lastError = error;
+                }
+            }
+
+            throw new Error(lastError ? lastError.message : 'Unable to search Space-Track');
+        }
+
+        async function fetchTleFromBackend(source, query, creds, mode) {
+            const response = await fetch('/api/tle/search', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                cache: 'no-store',
+                body: JSON.stringify({
+                    source,
+                    query,
+                    mode,
+                    username: creds && creds.username ? creds.username : '',
+                    password: creds && creds.password ? creds.password : ''
+                })
+            });
+
+            let payload = {};
+            try {
+                payload = await response.json();
+            } catch (e) {
+                payload = {};
+            }
+
+            if (!response.ok) {
+                const detail = payload && payload.error ? payload.error : `HTTP ${response.status}`;
+                throw new Error(detail);
+            }
+
+            const results = Array.isArray(payload.results) ? payload.results : [];
+            return results.map(item => withTleMetadata(item));
         }
 
         function parseTleText(tleText) {
@@ -973,9 +1256,58 @@
             return entries;
         }
 
+        function importManualTle() {
+            const manualText = document.getElementById('manualTleText').value || '';
+            const cleaned = manualText
+                .split(/\r?\n/)
+                .map(line => line.trim())
+                .filter(line => line.length > 0);
+
+            if (cleaned.length < 3) {
+                alert('Paste 3 lines: name, line 1, and line 2');
+                return;
+            }
+
+            const name = cleaned[0];
+            const line1 = cleaned[1];
+            const line2 = cleaned[2];
+
+            if (!line1.startsWith('1 ') || !line2.startsWith('2 ')) {
+                alert('Invalid TLE format. Line 1 must start with "1 " and line 2 must start with "2 ".');
+                return;
+            }
+
+            selectedTle = withTleMetadata({
+                name,
+                line1,
+                line2,
+                noradId: line1.substring(2, 7).trim()
+            });
+
+            const imported = document.getElementById('tleImported');
+            const tleStatus = document.getElementById('tleStatus');
+
+            imported.style.display = 'block';
+            imported.textContent = `Imported: ${selectedTle.name} (NORAD ${selectedTle.noradId || 'n/a'})`;
+
+            const point = getTleSubsatellitePoint(selectedTle, new Date());
+            tleStatus.style.display = 'block';
+            if (point) {
+                document.getElementById('sat').value = point.lon.toFixed(2);
+                tleStatus.style.background = '#E8F5E8';
+                tleStatus.style.color = '#2E7D32';
+                tleStatus.textContent = `Manual TLE imported. Current subsatellite point: lat ${point.lat.toFixed(2)} deg, lon ${point.lon.toFixed(2)} deg`;
+            } else {
+                tleStatus.style.background = '#FFF3E0';
+                tleStatus.style.color = '#E65100';
+                tleStatus.textContent = 'Manual TLE imported, but current subsatellite point could not be computed.';
+            }
+        }
+
         async function searchTleSatellites() {
             const rawQuery = document.getElementById('tleQuery').value.trim();
             const query = rawQuery.toLowerCase();
+            const queryMode = detectTleQueryMode(rawQuery);
             const tleStatus = document.getElementById('tleStatus');
             const tleResults = document.getElementById('tleResults');
 
@@ -987,16 +1319,36 @@
             tleStatus.style.display = 'block';
             tleStatus.style.background = '#E3F2FD';
             tleStatus.style.color = '#1976D2';
-            tleStatus.textContent = 'Searching CelesTrak TLE database...';
+            const source = getSelectedTleSource();
+            const modeLabel = queryMode === 'norad' ? 'NORAD' : 'name';
+            tleStatus.textContent = source === 'spacetrack'
+                ? `Searching Space-Track by ${modeLabel} via backend...`
+                : `Searching CelesTrak by ${modeLabel} via backend...`;
             tleResults.style.display = 'none';
 
             try {
-                // First try direct name search; fall back to active catalog filter if needed.
                 let results = [];
-                try {
-                    results = await fetchTleByName(rawQuery);
-                } catch (nameSearchError) {
-                    const catalog = await fetchActiveTleCatalog();
+
+                if (window.location.protocol === 'file:') {
+                    throw new Error('Backend API is unavailable in file:// mode. Start backend and open http://localhost:8000');
+                }
+
+                let creds = null;
+                if (source === 'spacetrack') {
+                    creds = getSpaceTrackCredentialsFromPrompt();
+                    if (!creds) {
+                        throw new Error('Space-Track login canceled');
+                    }
+                }
+
+                results = await fetchTleFromBackend(source, rawQuery, creds, queryMode);
+
+                if (source === 'spacetrack') {
+                    spaceTrackCredentials = creds;
+                }
+
+                if (!results.length && source === 'celestrak' && queryMode === 'name') {
+                    const catalog = await fetchTleFromBackend('celestrak-active', rawQuery, null, 'name');
                     results = catalog.filter(item => item.name.toLowerCase().includes(query));
                 }
 
@@ -1013,7 +1365,7 @@
 
                 tleStatus.style.background = '#E8F5E8';
                 tleStatus.style.color = '#2E7D32';
-                tleStatus.textContent = `Found ${tleSearchResults.length} result(s) - choose one to import`;
+                tleStatus.textContent = `Found ${tleSearchResults.length} result(s) by ${modeLabel} from ${source === 'spacetrack' ? 'Space-Track' : 'CelesTrak'} (backend) - choose one to import`;
 
                 renderTleResults();
             } catch (error) {
@@ -1032,7 +1384,7 @@
                     <div class="tle-item">
                         <div>
                             <div class="tle-item-name">${item.name}</div>
-                            <div class="tle-item-meta">NORAD ${item.noradId} • ${item.orbitClass} • n=${Number.isFinite(item.meanMotionRevPerDay) ? item.meanMotionRevPerDay.toFixed(4) : 'n/a'} rev/day • i=${Number.isFinite(item.inclinationDeg) ? item.inclinationDeg.toFixed(2) : 'n/a'}°</div>
+                            <div class="tle-item-meta">${item.source || 'Unknown source'} • NORAD ${item.noradId} • ${item.orbitClass} • n=${Number.isFinite(item.meanMotionRevPerDay) ? item.meanMotionRevPerDay.toFixed(4) : 'n/a'} rev/day • i=${Number.isFinite(item.inclinationDeg) ? item.inclinationDeg.toFixed(2) : 'n/a'}°</div>
                         </div>
                         <button class="tle-import-btn" type="button" onclick="importTleSelection(${index})">Import</button>
                     </div>
@@ -1052,7 +1404,7 @@
             }
 
             imported.style.display = 'block';
-            imported.textContent = `Imported: ${selectedTle.name} (NORAD ${selectedTle.noradId})`;
+            imported.textContent = `Imported: ${selectedTle.name} (NORAD ${selectedTle.noradId}) from ${selectedTle.source || 'selected source'}`;
 
             // Update satellite longitude field using current propagated sub-satellite longitude.
             const point = getTleSubsatellitePoint(selectedTle, new Date());
@@ -1101,85 +1453,84 @@
                 Math.tan(latRad)
             );
             let skewDeg = skewRad * 180 / Math.PI;
-
-
-                    function calculateSkewFromTleGeometry(observerLatDeg, observerLonDeg, satelliteEcf, subsatLatDeg, subsatLonDeg) {
-                        const observerGd = {
-                            latitude: satellite.degreesToRadians(observerLatDeg),
-                            longitude: satellite.degreesToRadians(observerLonDeg),
-                            height: 0
-                        };
-                        const observerEcf = satellite.geodeticToEcf(observerGd);
-
-                        const los = normalizeVector({
-                            x: satelliteEcf.x - observerEcf.x,
-                            y: satelliteEcf.y - observerEcf.y,
-                            z: satelliteEcf.z - observerEcf.z
-                        });
-
-                        const observerUp = normalizeVector(observerEcf);
-                        const verticalRef = normalizeVector(projectOntoPlane(observerUp, los));
-
-                        const subsatLatRad = satellite.degreesToRadians(subsatLatDeg);
-                        const subsatLonRad = satellite.degreesToRadians(subsatLonDeg);
-                        const satNorth = {
-                            x: -Math.sin(subsatLatRad) * Math.cos(subsatLonRad),
-                            y: -Math.sin(subsatLatRad) * Math.sin(subsatLonRad),
-                            z: Math.cos(subsatLatRad)
-                        };
-                        const polarizationRef = normalizeVector(projectOntoPlane(satNorth, los));
-
-                        if (!verticalRef || !polarizationRef) {
-                            return 0;
-                        }
-
-                        const signedRad = Math.atan2(
-                            dotProduct(los, crossProduct(verticalRef, polarizationRef)),
-                            dotProduct(verticalRef, polarizationRef)
-                        );
-
-                        return signedRad * 180 / Math.PI;
-                    }
-
-                    function normalizeVector(v) {
-                        const mag = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
-                        if (mag < 1e-12) {
-                            return null;
-                        }
-
-                        return {
-                            x: v.x / mag,
-                            y: v.y / mag,
-                            z: v.z / mag
-                        };
-                    }
-
-                    function dotProduct(a, b) {
-                        return a.x * b.x + a.y * b.y + a.z * b.z;
-                    }
-
-                    function crossProduct(a, b) {
-                        return {
-                            x: a.y * b.z - a.z * b.y,
-                            y: a.z * b.x - a.x * b.z,
-                            z: a.x * b.y - a.y * b.x
-                        };
-                    }
-
-                    function projectOntoPlane(v, planeNormal) {
-                        const scale = dotProduct(v, planeNormal);
-
-                        return {
-                            x: v.x - scale * planeNormal.x,
-                            y: v.y - scale * planeNormal.y,
-                            z: v.z - scale * planeNormal.z
-                        };
-                    }
             if (observerLat < 0) {
                 skewDeg = -skewDeg;
             }
 
             return skewDeg;
+        }
+
+        function calculateSkewFromTleGeometry(observerLatDeg, observerLonDeg, satelliteEcf, subsatLatDeg, subsatLonDeg) {
+            const observerGd = {
+                latitude: satellite.degreesToRadians(observerLatDeg),
+                longitude: satellite.degreesToRadians(observerLonDeg),
+                height: 0
+            };
+            const observerEcf = satellite.geodeticToEcf(observerGd);
+
+            const los = normalizeVector({
+                x: satelliteEcf.x - observerEcf.x,
+                y: satelliteEcf.y - observerEcf.y,
+                z: satelliteEcf.z - observerEcf.z
+            });
+
+            const observerUp = normalizeVector(observerEcf);
+            const verticalRef = normalizeVector(projectOntoPlane(observerUp, los));
+
+            const subsatLatRad = satellite.degreesToRadians(subsatLatDeg);
+            const subsatLonRad = satellite.degreesToRadians(subsatLonDeg);
+            const satNorth = {
+                x: -Math.sin(subsatLatRad) * Math.cos(subsatLonRad),
+                y: -Math.sin(subsatLatRad) * Math.sin(subsatLonRad),
+                z: Math.cos(subsatLatRad)
+            };
+            const polarizationRef = normalizeVector(projectOntoPlane(satNorth, los));
+
+            if (!verticalRef || !polarizationRef) {
+                return 0;
+            }
+
+            const signedRad = Math.atan2(
+                dotProduct(los, crossProduct(verticalRef, polarizationRef)),
+                dotProduct(verticalRef, polarizationRef)
+            );
+
+            return signedRad * 180 / Math.PI;
+        }
+
+        function normalizeVector(v) {
+            const mag = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+            if (mag < 1e-12) {
+                return null;
+            }
+
+            return {
+                x: v.x / mag,
+                y: v.y / mag,
+                z: v.z / mag
+            };
+        }
+
+        function dotProduct(a, b) {
+            return a.x * b.x + a.y * b.y + a.z * b.z;
+        }
+
+        function crossProduct(a, b) {
+            return {
+                x: a.y * b.z - a.z * b.y,
+                y: a.z * b.x - a.x * b.z,
+                z: a.x * b.y - a.y * b.x
+            };
+        }
+
+        function projectOntoPlane(v, planeNormal) {
+            const scale = dotProduct(v, planeNormal);
+
+            return {
+                x: v.x - scale * planeNormal.x,
+                y: v.y - scale * planeNormal.y,
+                z: v.z - scale * planeNormal.z
+            };
         }
 
         function calculateFromSelectedTle() {
@@ -1213,40 +1564,45 @@
                 return;
             }
 
-            const now = new Date();
-            const satrec = satellite.twoline2satrec(selectedTle.line1, selectedTle.line2);
-            const pv = satellite.propagate(satrec, now);
+            try {
+                const now = new Date();
+                const satrec = satellite.twoline2satrec(selectedTle.line1, selectedTle.line2);
+                const pv = satellite.propagate(satrec, now);
 
-            if (!pv.position) {
-                alert('Could not propagate satellite position from TLE');
-                return;
+                if (!pv.position) {
+                    alert('Could not propagate satellite position from TLE');
+                    return;
+                }
+
+                const gmst = satellite.gstime(now);
+                const satelliteEcf = satellite.eciToEcf(pv.position, gmst);
+                const lookAngles = computeLookAnglesFromEcf(lat, lon, satelliteEcf);
+                const azimuthDeg = lookAngles.azimuthDeg;
+                const elevationDeg = lookAngles.elevationDeg;
+
+                const subsat = getTleSubsatellitePoint(selectedTle, now);
+                if (!subsat) {
+                    alert('Could not derive subsatellite point from TLE');
+                    return;
+                }
+
+                document.getElementById('sat').value = subsat.lon.toFixed(2);
+                const skewDeg = calculateSkewFromTleGeometry(lat, lon, satelliteEcf, subsat.lat, subsat.lon);
+                const angleRange = document.getElementById('angleRange').value;
+
+                renderResults(
+                    azimuthDeg,
+                    elevationDeg,
+                    skewDeg,
+                    lat,
+                    lon,
+                    angleRange,
+                    `TLE mode: ${selectedTle.name} at ${now.toUTCString()}<br>Subsat point: ${subsat.lat.toFixed(2)}° lat, ${subsat.lon.toFixed(2)}° lon, ${subsat.altKm.toFixed(0)} km alt`
+                );
+            } catch (error) {
+                const detail = error && error.message ? error.message : 'unknown error';
+                alert(`TLE calculation failed: ${detail}`);
             }
-
-            const gmst = satellite.gstime(now);
-            const satelliteEcf = satellite.eciToEcf(pv.position, gmst);
-            const lookAngles = computeLookAnglesFromEcf(lat, lon, satelliteEcf);
-            const azimuthDeg = lookAngles.azimuthDeg;
-            const elevationDeg = lookAngles.elevationDeg;
-
-            const subsat = getTleSubsatellitePoint(selectedTle, now);
-            if (!subsat) {
-                alert('Could not derive subsatellite point from TLE');
-                return;
-            }
-
-            document.getElementById('sat').value = subsat.lon.toFixed(2);
-            const skewDeg = calculateSkewFromTleGeometry(lat, lon, satelliteEcf, subsat.lat, subsat.lon);
-            const angleRange = document.getElementById('angleRange').value;
-
-            renderResults(
-                azimuthDeg,
-                elevationDeg,
-                skewDeg,
-                lat,
-                lon,
-                angleRange,
-                `TLE mode: ${selectedTle.name} at ${now.toUTCString()}<br>Subsat point: ${subsat.lat.toFixed(2)}° lat, ${subsat.lon.toFixed(2)}° lon, ${subsat.altKm.toFixed(0)} km alt`
-            );
         }
         
         function calculateSkew() {
