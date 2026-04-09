@@ -602,11 +602,9 @@
                     <div class="tle-source-row">
                         <select id="tleSource">
                             <option value="celestrak" selected>CelesTrak</option>
-                            <option value="spacetrack">Space-Track.org</option>
                         </select>
-                        <button class="secondary" type="button" onclick="clearSpaceTrackCredentials()">Clear Space-Track Login</button>
                     </div>
-                    <div class="helper-text">Search by satellite name or numeric NORAD ID. Space-Track mode will prompt for username/password when needed.</div>
+                    <div class="helper-text">Search by satellite name or numeric NORAD ID.</div>
                     <div class="tle-actions">
                         <button class="secondary" type="button" onclick="searchTleSatellites()">Search Top 5</button>
                         <button class="primary" type="button" onclick="calculateFromSelectedTle()">TLE Calculations</button>
@@ -742,11 +740,7 @@
                 tleStatus.style.display = 'block';
                 tleStatus.style.background = '#E3F2FD';
                 tleStatus.style.color = '#1976D2';
-                if (getSelectedTleSource() === 'spacetrack') {
-                    tleStatus.textContent = 'Space-Track source selected. You will be prompted for login during search.';
-                } else {
-                    tleStatus.textContent = 'CelesTrak source selected.';
-                }
+                tleStatus.textContent = 'CelesTrak source selected.';
             });
         };
         
@@ -764,7 +758,16 @@
 
         function getSelectedTleSource() {
             const sourceEl = document.getElementById('tleSource');
-            return sourceEl ? sourceEl.value : 'celestrak';
+            if (!sourceEl) {
+                return 'celestrak';
+            }
+
+            // Space-Track is temporarily disabled in the public UI.
+            if (sourceEl.value !== 'celestrak') {
+                sourceEl.value = 'celestrak';
+            }
+
+            return 'celestrak';
         }
 
         function detectTleQueryMode(rawQuery) {
@@ -1321,9 +1324,7 @@
             tleStatus.style.color = '#1976D2';
             const source = getSelectedTleSource();
             const modeLabel = queryMode === 'norad' ? 'NORAD' : 'name';
-            tleStatus.textContent = source === 'spacetrack'
-                ? `Searching Space-Track by ${modeLabel} via backend...`
-                : `Searching CelesTrak by ${modeLabel} via backend...`;
+            tleStatus.textContent = `Searching CelesTrak by ${modeLabel} via backend...`;
             tleResults.style.display = 'none';
 
             try {
@@ -1333,19 +1334,7 @@
                     throw new Error('Backend API is unavailable in file:// mode. Start backend and open http://localhost:8000');
                 }
 
-                let creds = null;
-                if (source === 'spacetrack') {
-                    creds = getSpaceTrackCredentialsFromPrompt();
-                    if (!creds) {
-                        throw new Error('Space-Track login canceled');
-                    }
-                }
-
-                results = await fetchTleFromBackend(source, rawQuery, creds, queryMode);
-
-                if (source === 'spacetrack') {
-                    spaceTrackCredentials = creds;
-                }
+                results = await fetchTleFromBackend(source, rawQuery, null, queryMode);
 
                 if (!results.length && source === 'celestrak' && queryMode === 'name') {
                     const catalog = await fetchTleFromBackend('celestrak-active', rawQuery, null, 'name');
@@ -1365,7 +1354,7 @@
 
                 tleStatus.style.background = '#E8F5E8';
                 tleStatus.style.color = '#2E7D32';
-                tleStatus.textContent = `Found ${tleSearchResults.length} result(s) by ${modeLabel} from ${source === 'spacetrack' ? 'Space-Track' : 'CelesTrak'} (backend) - choose one to import`;
+                tleStatus.textContent = `Found ${tleSearchResults.length} result(s) by ${modeLabel} from CelesTrak (backend) - choose one to import`;
 
                 renderTleResults();
             } catch (error) {
